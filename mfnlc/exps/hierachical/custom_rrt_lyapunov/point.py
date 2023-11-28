@@ -1,6 +1,6 @@
 import numpy as np
 
-from mfnlc.exps.hierachical.rrt_lyapunov.base import evaluate, build_lyapunov_table
+from mfnlc.exps.hierachical.custom_rrt_lyapunov.base import evaluate, build_lyapunov_table
 from mfnlc.exps.check_results import print_all_results
 
 ENV_NAME = "Point-eval"
@@ -24,7 +24,7 @@ def rrt_lyapunov(planning_algo):
                      "vertical": True,
                      "scale": 7 * i
                  },
-                 video=True,
+                 video=False,
                  seed=0)
 
 

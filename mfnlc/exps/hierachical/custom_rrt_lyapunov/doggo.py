@@ -3,11 +3,11 @@ import numpy as np
 from mfnlc.exps.hierachical.rrt_lyapunov.base import evaluate, build_lyapunov_table
 from mfnlc.exps.check_results import print_all_results
 
-ENV_NAME = "Point-eval"
+ENV_NAME = "Doggo-eval"
 
 
 def rrt_lyapunov(planning_algo):
-    for i in range(1, 4):
+    for i in range(3, 4):
         print(f"{ENV_NAME} - RRT + Lyapunov-TD3 - level {i}")
         evaluate(ENV_NAME,
                  n_rollout=1,
@@ -20,25 +20,27 @@ def rrt_lyapunov(planning_algo):
                  render=False,
                  render_config={
                      "traj_sample_freq": 10,
-                     "follow": False,
-                     "vertical": True,
-                     "scale": 7 * i
+                     "follow": True,
+                     "vertical": False,
+                     "scale": 4
                  },
                  video=True,
-                 seed=0)
+                 seed=123)
 
 
 def build_lv_table():
-    lb = np.array([-1, -1, -1, -1, 9.8, -1, -1, -1, -1, -1, -1, -1, -1, -1])
-    ub = np.array([1, 1, 1, 1, 9.81, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+    lb = -np.ones(58)
+    lb[4] = 9.8
+    ub = np.ones(58)
+    ub[4] = 9.81
     build_lyapunov_table(ENV_NAME,
                          lb, ub,
-                         pgd_max_iter=500,
-                         n_radius_est_sample=40)
+                         pgd_max_iter=1000,
+                         n_radius_est_sample=20)
 
 
 if __name__ == '__main__':
-    build_lv_table()
+    # build_lv_table()
     rrt_lyapunov("rrt*")
     print_all_results(ENV_NAME, "rrt_lyapunov", "rrt*")
     input("Press Enter to continue...")

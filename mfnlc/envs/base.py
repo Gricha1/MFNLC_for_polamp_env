@@ -3,7 +3,8 @@ from typing import Dict
 
 import gym
 import numpy as np
-import safety_gym  # noqa
+import cv2
+#import safety_gym  # noqa
 from gym import Env
 
 from mfnlc.config import env_config
@@ -273,7 +274,12 @@ class SafetyGymBase(EnvBase):
                                follow=self.render_config["follow"],
                                vertical=self.render_config["vertical"],
                                scale=self.render_config["scale"])
-
+    
+    def custom_render(self, shape=(600, 600)):
+        # camera_name = ('fixednear', 'fixedfar', 'vision', 'track')
+        image = self.env.sim.render(shape[0], shape[1], camera_name="fixedfar", mode='offscreen')
+        rotated_image = cv2.rotate(image, cv2.ROTATE_180)
+        return rotated_image
 
 class ObstacleMaskWrapper(gym.Wrapper):
     """

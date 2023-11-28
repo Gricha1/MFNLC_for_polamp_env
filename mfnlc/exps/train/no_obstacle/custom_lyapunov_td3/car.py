@@ -2,36 +2,41 @@ import numpy as np
 from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
 
 from mfnlc.evaluation.simulation import inspect_training_simu
-from mfnlc.exps.train.no_obstacle.lyapunov_td3.base import train, evaluate_lyapunov_of
+from mfnlc.exps.train.no_obstacle.custom_lyapunov_td3.base import train, evaluate_lyapunov_of
 
 
 def colearn():
     action_noise = OrnsteinUhlenbeckActionNoise(np.array([0] * 2), np.array([0.2] * 2))
-    train(env_name="Point-no-obst",
-          lf_structure=[14, 64, 64, 1],
-          lqf_structure=[14 + 2, 64, 64, 1],
+    train(env_name="Car-no-obst",
+          lf_structure=[26, 128, 128, 1],
+          lqf_structure=[26 + 2, 128, 128, 1],
           tclf_ub=15,
           tclf_q_sigma=0,
-          lqf_loss_cnst=0.2,
-          total_timesteps=200_000,
+          total_timesteps=2_000_000,
           action_noise=action_noise,
-          batch_size=1024,
-          policy_kwargs={"net_arch": [64, 64]})
+          policy_kwargs={"net_arch": [128, 128]},
+          batch_size=2048,
+          gradient_steps=-1,
+          train_freq=(4000, "step"),
+          log_interval=4,
+          #n_envs=4
+          n_envs=1
+          )
 
 
 def evaluate_controller():
-    inspect_training_simu(env_name="Point-no-obst",
+    inspect_training_simu(env_name="Car-no-obst",
                           algo="lyapunov_td3",
                           n_rollout=5,
                           render=True)
 
 
 def evaluate_lyapunov():
-    evaluate_lyapunov_of("Point")
+    evaluate_lyapunov_of("Car")
 
 
 if __name__ == "__main__":
-    for i in range(5):
-        colearn()
+     for i in range(5):
+         colearn()
     # evaluate_controller()
     #evaluate_lyapunov()

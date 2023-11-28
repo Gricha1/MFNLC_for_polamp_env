@@ -101,7 +101,7 @@ def simu(env,
             if monitor is not None:
                 subgoal, lyapunov_r = monitor.select_subgoal(env, subgoal)
             env.set_subgoal(subgoal, store=False)
-            env.set_roa(subgoal, lyapunov_r)  # noqa
+            #env.set_roa(subgoal, lyapunov_r)  # noqa
 
         if render:
             if path is not None and monitor is not None:

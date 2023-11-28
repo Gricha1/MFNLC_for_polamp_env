@@ -39,7 +39,6 @@ class TwinControlLyapunovFunction(nn.Module):
         self.input_amplifier = input_amplifier
         self.lie_derivative_upper = lie_derivative_upper
         self.device = device
-
         self.to(self.device)
 
     def forward(self, x: th.Tensor, a: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
