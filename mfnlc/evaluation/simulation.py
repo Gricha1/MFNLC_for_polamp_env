@@ -1,6 +1,7 @@
 from typing import Dict
 
 import numpy as np
+import torch as th
 
 from mfnlc.config import env_config
 from mfnlc.envs import get_env
@@ -76,7 +77,11 @@ def simu(env,
 
     env.set_render_config(render_config)
     if render:
-        env.render()
+        screens = []
+        #env.render()
+        screen = env.custom_render()
+        # PyTorch uses CxHxW vs HxWxC gym (and tensorflow) image convention
+        screens.append(screen.transpose(2, 0, 1))
 
     total_step = 0
     goal_met = False
@@ -104,17 +109,27 @@ def simu(env,
             #env.set_roa(subgoal, lyapunov_r)  # noqa
 
         if render:
-            if path is not None and monitor is not None:
-                env.render()
-            else:
-                env.render()
+            #if path is not None and monitor is not None:
+            #    env.render()
+            #else:
+            #    env.render()
+            screen = env.custom_render()
+            # PyTorch uses CxHxW vs HxWxC gym (and tensorflow) image convention
+            screens.append(screen.transpose(2, 0, 1))
 
         if done:
             goal_met = info.get("goal_met", False)
             collision = info.get("collision", False)
             break
 
-    return {"total_step": total_step,
-            "collision": collision,
-            "goal_met": goal_met,
-            "reward_sum": reward_sum}
+    if not render:
+        return {"total_step": total_step,
+                "collision": collision,
+                "goal_met": goal_met,
+                "reward_sum": reward_sum}
+    else:
+        return {"total_step": total_step,
+                "collision": collision,
+                "goal_met": goal_met,
+                "reward_sum": reward_sum,
+                "screens" : th.ByteTensor([screens])}

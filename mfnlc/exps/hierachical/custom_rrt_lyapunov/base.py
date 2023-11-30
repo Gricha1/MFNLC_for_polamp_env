@@ -5,6 +5,11 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 from gym.wrappers.monitor import Monitor as VideoMonitor
+from torch.utils.tensorboard import SummaryWriter
+from stable_baselines3.common.logger import Video
+#from PIL import Image
+from stable_baselines3.common.logger import Image
+import torch as th
 
 from mfnlc.config import get_path
 from mfnlc.envs import get_env
@@ -44,6 +49,14 @@ def evaluate(env_name,
     random.seed(seed)
 
     choose_level(env, level)
+    if render:
+        #robot_name = env_name.split("-")[0]
+        #algo = "lyapunov_td3"
+        #tensorboard_log = get_path(robot_name, algo, "log")
+        tensorboard_log = get_path(robot_name=env.robot_name,
+                              algo=ALGO, task="video") + f"{planning_algo}-level-{level}"
+        writer = SummaryWriter(tensorboard_log)
+
     if video:
         video_path = get_path(robot_name=env.robot_name,
                               algo=ALGO, task="video") + f"{planning_algo}-level-{level}"
@@ -70,7 +83,17 @@ def evaluate(env_name,
             env.unwrapped.reset()
         path = planner.plan(planner_max_iter, **planning_algo_kwargs)
         if check_plan:
-            plot_path_2d(planner.algo.search_space, path, planner.algo.tree)
+            image_plan = plot_path_2d(planner.algo.search_space, path, planner.algo.tree)
+            if render:
+                print("add image plan to tensorboard")
+                #writer.add_image("image", image_plan, dataformats="HWC")
+                #image_plan = np.transpose(np.array([image_plan]), axes=[0, 3, 1, 2]).squeeze()
+                image_plan = np.transpose(np.array([image_plan]), axes=[0, 3, 1, 2])
+                image_plan = th.ByteTensor([image_plan])
+                #image_plan = Image(image_plan, "HWC")
+                #image_plan = Image.fromarray((image_plan * 255).astype(np.uint8))
+                #writer.add_image("image", image_plan, "CHW")
+                writer.add_video('eval_plan', image_plan, global_step=0, fps=30)
         if len(path) == 0:
             re_plan = True
             continue
@@ -85,6 +108,10 @@ def evaluate(env_name,
                    render=render,
                    render_config=render_config)
         for k in res:
+            if render and k == "screens":
+                print("add video to tensorboard")
+                writer.add_video('eval_trajectory', res[k], global_step=0, fps=30)
+                continue
             running_data[k].append(res[k])
         i += 1
 
@@ -95,6 +122,7 @@ def evaluate(env_name,
     stat.to_csv(res_dir + f"/{level}.csv")
     print("results are saved to:", res_dir + f"/{level}.csv")
 
+    writer.close()
     env.close()
     return stat, env.env.traj
 

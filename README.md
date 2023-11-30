@@ -117,10 +117,23 @@ z = self.ego_xy(pos)[0] + self.ego_xy(pos)[1] * 1j
 pip install moviepy
 pip install opencv-python
 ```
+# start tensorboard
+tensorboard --logdir mfnlc/mfnlc_data/ --bind_all
 
-# run
+# train
+```commandline
 cd mfnlc
 python exps/train/no_obstacle/custom_lyapunov_td3/point.py
 python exps/hierachical/custom_rrt_lyapunov/point.py
+```
 
+# troubles
+No such file or directory: '/home/reedgern/mipt_work_space/sem_3/NIR/other_algs/MFNLC/mfnlc/mfnlc_data/lyapunov_td3/Nav/model.zip.zip'
 
+```commandline
+in Nav.py delete comments:
+for i in range(5):
+        colearn()
+    # evaluate_controller()
+evaluate_lyapunov()
+```

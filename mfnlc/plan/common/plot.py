@@ -49,3 +49,8 @@ def plot_path_2d(space: SearchSpace,
         ax.plot(path[:, 0], path[:, 1], marker="x", color="r")
 
     plt.show()
+
+    fig.canvas.draw()
+    data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    return data

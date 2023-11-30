@@ -35,7 +35,7 @@ def evaluate_lyapunov():
 
 
 if __name__ == "__main__":
-    # for i in range(5):
-    #     colearn()
+    for i in range(5):
+        colearn()
     # evaluate_controller()
     evaluate_lyapunov()

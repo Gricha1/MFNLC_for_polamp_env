@@ -17,7 +17,9 @@ def rrt_lyapunov(planning_algo):
                  n_steps=1000 * i * i,
                  arrive_radius=0.3,
                  monitor_max_step_size=0.5,
-                 render=False,
+                 #render=False,
+                 render=True,
+                 check_plan=True,
                  render_config={
                      "traj_sample_freq": 10,
                      "follow": False,

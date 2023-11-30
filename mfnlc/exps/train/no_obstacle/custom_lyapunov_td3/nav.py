@@ -2,7 +2,7 @@ import numpy as np
 from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
 
 from mfnlc.evaluation.simulation import inspect_training_simu
-from mfnlc.exps.train.no_obstacle.lyapunov_td3.base import train, evaluate_lyapunov_of
+from mfnlc.exps.train.no_obstacle.custom_lyapunov_td3.base import train, evaluate_lyapunov_of
 
 
 def colearn():
@@ -29,7 +29,7 @@ def evaluate_lyapunov():
 
 
 if __name__ == "__main__":
-    # for i in range(5):
-    #     colearn()
+    for i in range(5):
+        colearn()
     # evaluate_controller()
     evaluate_lyapunov()
