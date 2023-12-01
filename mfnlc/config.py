@@ -36,6 +36,24 @@ env_config = {
             3: [128, [[-8, -8], [8, 8]]]
         }
     },
+    "Polamp": {
+        "max_step": 600,
+        "goal_dim": 2,
+        "state_dim": 0,
+        "robot_radius": 0.3,
+        "sink": [0.0, 0.0, 0.0, 0.0, 9.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "env_prop": {
+            "vases_num": 0,
+            "render_lidar_markers": False,
+            'floor_display_mode': True
+        },
+        "difficulty": {
+            # number of obstacle | map size
+            1: [8, [[-2, -2], [2, 2]]],
+            2: [32, [[-4, -4], [4, 4]]],
+            3: [128, [[-8, -8], [8, 8]]]
+        }
+    },
     "Car": {
         "max_step": 1000,
         "goal_dim": 2,

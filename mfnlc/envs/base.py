@@ -148,7 +148,7 @@ class SafetyGymBase(EnvBase):
 
     @property
     def robot_name(self):
-        all_robot_names = ["Point", "Car", "Doggo"]
+        all_robot_names = ["Point", "Car", "Doggo", "Polamp"]
         for name in all_robot_names:
             if name in self.env_name:
                 return name
