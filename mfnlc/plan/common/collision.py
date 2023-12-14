@@ -28,7 +28,9 @@ class CollisionChecker:
     def overlap(obj_1: ObjectBase, obj_2: ObjectBase) -> bool:
         if isinstance(obj_1, Circle):
             if isinstance(obj_2, Circle):
-                return np.linalg.norm(obj_1.state - obj_2.state, ord=2) <= obj_1.radius + obj_2.radius
+                assert len(obj_2.state) == 2
+                #return np.linalg.norm(obj_1.state - obj_2.state, ord=2) <= obj_1.radius + obj_2.radius
+                return np.linalg.norm(obj_1.state[:2] - obj_2.state, ord=2) <= obj_1.radius + obj_2.radius
 
     @staticmethod
     def seq_to_seq_overlap(traj: List[ObjectBase],

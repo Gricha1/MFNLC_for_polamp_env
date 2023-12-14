@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 import numpy as np
 import torch as th
 
-from mfnlc.envs.base import ObstacleMaskWrapper
+#from mfnlc.envs.base import ObstacleMaskWrapper
 from mfnlc.learn.tclf import TwinControlLyapunovFunction
 
 
@@ -150,7 +150,7 @@ class Monitor:
         self.current_goal = None
 
     def select_subgoal(self,
-                       env: ObstacleMaskWrapper,
+                       env,
                        gt: np.ndarray) -> Tuple[np.ndarray, int]:
         if self.current_goal is None:
             self.current_goal = env.robot_pos

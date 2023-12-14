@@ -1,10 +1,10 @@
 from typing import List
 
 import numpy as np
-from safety_gym.envs.engine import Engine
+#from safety_gym.envs.engine import Engine
 
-from mfnlc.envs import Continuous2DNav
-from mfnlc.envs.base import SafetyGymBase
+#from mfnlc.envs import Continuous2DNav
+#from mfnlc.envs.base import SafetyGymBase
 from mfnlc.plan.common.geometry import ObjectBase, Circle
 
 
@@ -23,6 +23,7 @@ class SearchSpace:
 
     @classmethod
     def build_from_env(cls, env) -> 'SearchSpace':
+        """
         if isinstance(env.unwrapped, Continuous2DNav):
             env: Continuous2DNav = env.unwrapped
 
@@ -37,7 +38,8 @@ class SearchSpace:
             obstacles = [Circle(obst, radius=obstacle_radius) for obst in obstacles_centers]
 
         elif issubclass(type(env.unwrapped), SafetyGymBase):
-            env: Engine = env.unwrapped.env
+            #env: Engine = env.unwrapped.env
+            env = env.unwrapped.env
 
             floor_extends = env.placements_extents
             lb = np.array(floor_extends[:2])
@@ -51,7 +53,21 @@ class SearchSpace:
             obstacles = [Circle(obst[:2], radius=obstacle_radius) for obst in obstacles_centers]
         else:
             raise NotImplementedError
+        """
+        
+        lb = env.observation_space["observation"].low
+        ub = env.observation_space["observation"].high
+        lb, ub = env.get_constained_agent_bounds()
+        
+        agent = env.environment.agent.current_state
+        initial_state = np.array([agent.x, agent.y, agent.theta, agent.v, agent.steer])
+        goal = env.environment.agent.goal_state
+        goal_state = np.array([goal.x, goal.y, goal.theta, goal.v, goal.steer])
 
+        obstacles_centers = [obst[:2] for obst in env.maps[env.map_key]]
+        obstacle_radius = 5
+        obstacles = [Circle(obst, radius=obstacle_radius) for obst in obstacles_centers]
+        
         return SearchSpace(lb, ub, initial_state, goal_state, obstacles)
 
     def sample(self, n_samples: int) -> np.ndarray:

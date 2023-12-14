@@ -1,11 +1,11 @@
 from typing import Dict
 
 import numpy as np
-from safety_gym.envs.engine import Engine
+#from safety_gym.envs.engine import Engine
 
 from mfnlc.config import env_config
-from mfnlc.envs import Continuous2DNav
-from mfnlc.envs.base import SafetyGymBase
+#from mfnlc.envs import Continuous2DNav
+#from mfnlc.envs.base import SafetyGymBase
 from mfnlc.plan.common.geometry import Circle
 from mfnlc.plan.common.path import Path
 from mfnlc.plan.common.space import SearchSpace
@@ -51,6 +51,7 @@ class Planner:
         return algo
 
     def _extract_robot_info_from_env(self, support_margin: float):
+        """
         if isinstance(self.env.unwrapped, Continuous2DNav):
             env: Continuous2DNav = self.env.unwrapped
             assert env.robot_pos is not None, "reset env first"
@@ -58,7 +59,8 @@ class Planner:
             arrive_radius = env.arrive_radius
             resolution = np.max(env.floor_ub - env.floor_lb) / 100
         elif issubclass(type(self.env.unwrapped), SafetyGymBase):
-            env: Engine = self.env.unwrapped.env
+            #env: Engine = self.env.unwrapped.env
+            env = self.env.unwrapped.env
             assert not env.done, "reset env first"
             robot_radius = env_config[self.env.robot_name]["robot_radius"]
             arrive_radius = env.goal_size
@@ -68,7 +70,15 @@ class Planner:
             resolution = np.max(ub - lb) / 100
         else:
             raise NotImplementedError()
-
-        robot = Circle(env.robot_pos[:2], robot_radius)
+        """
+        env = self.env
+        robot_radius = env.environment.agent.dynamic_model.width / 2
+        arrive_radius = env.SOFT_EPS
+        lb, ub = env.get_constained_agent_bounds()
+        resolution = np.max(ub - lb) / 100
+        
+        agent = env.environment.agent.current_state
+        initial_state = np.array([agent.x, agent.y, agent.theta, agent.v, agent.steer])
+        robot = Circle(initial_state[:2], robot_radius)
 
         return robot, arrive_radius, resolution

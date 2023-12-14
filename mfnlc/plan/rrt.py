@@ -125,7 +125,8 @@ class RRT:
         return False, cost
 
     def _arrive(self, vertex: Tree.Vertex) -> bool:
-        return (np.abs(vertex.state - self.search_space.goal_state) < self.arrive_radius).all()
+        #return (np.abs(vertex.state - self.search_space.goal_state) < self.arrive_radius).all()
+        return (np.abs(vertex.state[:2] - self.search_space.goal_state[:2]) < self.arrive_radius).all()
 
     def _get_path(self, final_vertex: Tree.Vertex) -> Path:
         if final_vertex is not None:
