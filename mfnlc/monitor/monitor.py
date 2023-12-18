@@ -153,7 +153,8 @@ class Monitor:
                        env,
                        gt: np.ndarray) -> Tuple[np.ndarray, int]:
         if self.current_goal is None:
-            self.current_goal = env.robot_pos
+            #self.current_goal = env.robot_pos
+            self.current_goal = env["agent_state"]
 
         if (gt != self.current_goal).any():
             self.prev_goal = self.current_goal
