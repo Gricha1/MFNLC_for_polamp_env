@@ -154,7 +154,7 @@ class Monitor:
                        gt: np.ndarray) -> Tuple[np.ndarray, int]:
         if self.current_goal is None:
             #self.current_goal = env.robot_pos
-            self.current_goal = env["agent_state"]
+            self.current_goal = env["agent_pose"]
 
         if (gt != self.current_goal).any():
             self.prev_goal = self.current_goal
@@ -163,7 +163,8 @@ class Monitor:
             self.unit_direction_vec = self.direction_vec / np.linalg.norm(self.direction_vec)
             self.current_goal = gt
 
-        disp, lyapunov_r = self.choose_step_size(env.get_obs(), env.hazards_pos, env.obstacle_radius, env.robot_radius)
+        #disp, lyapunov_r = self.choose_step_size(env.get_obs(), env.hazards_pos, env.obstacle_radius, env.robot_radius)
+        disp, lyapunov_r = self.choose_step_size(env["agent_obs"], env["hazards_pos"], env["obstacle_radius"], env["robot_radius"])
         self.mid_goal = self.mid_goal + disp
 
         return self.mid_goal, lyapunov_r

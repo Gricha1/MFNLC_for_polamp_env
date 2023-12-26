@@ -1,5 +1,6 @@
 import copy
 from typing import Callable, Union, Tuple
+import math
 
 import numpy as np
 
@@ -86,11 +87,14 @@ class RRT:
 
         final_vertex = None
         for i in range(max_iteration):
+            if i % 500 == 0:
+                print("rrt iter:", i)
             sampled_vertex = self.tree.sample(heuristic, n_sample)
             parent = self.tree.nearest_vertex(sampled_vertex)
             collision, cost = self._steer(parent, sampled_vertex)
             if not collision:
                 sampled_vertex.cost = cost
+                self._set_theta_to_vertex(parent, sampled_vertex)
                 self.tree.insert_vertex(parent, sampled_vertex)
                 if self._arrive(sampled_vertex):
                     final_vertex = sampled_vertex
@@ -103,8 +107,15 @@ class RRT:
                vertex: Tree.Vertex) -> Tuple[bool, float]:
         n_mid_state = np.abs(parent.state - vertex.state).max() // self.collision_checker_resolution + 1
 
+        parent_obj = copy.deepcopy(self.robot)
+        vertex_obj = copy.deepcopy(self.robot)
+        parent_obj.state = parent.state
+        vertex_obj.state = vertex.state
+        _, theta = self.calc_distance_and_angle(parent_obj, vertex_obj)
+
         for state in np.linspace(parent.state, vertex.state, int(n_mid_state), endpoint=True):
             self.robot.state = state
+            self.robot.theta = theta
             for obstacle in self.search_space.obstacles:
                 if self.collision_checker.overlap(self.robot, obstacle):
                     return True, np.inf
@@ -123,6 +134,14 @@ class RRT:
         cost = parent.cost + self._default_dist(parent, vertex)
 
         return False, cost
+    
+    def _set_theta_to_vertex(self, parent: Tree.Vertex, sampled_vertex: Tree.Vertex):
+            parent_obj = copy.deepcopy(self.robot)
+            vertex_obj = copy.deepcopy(self.robot)
+            parent_obj.state = parent.state
+            vertex_obj.state = sampled_vertex.state
+            _, theta = self.calc_distance_and_angle(parent_obj, vertex_obj)
+            sampled_vertex.state[2] = theta
 
     def _arrive(self, vertex: Tree.Vertex) -> bool:
         #return (np.abs(vertex.state - self.search_space.goal_state) < self.arrive_radius).all()
@@ -147,3 +166,11 @@ class RRT:
                       end_vertex: Tree.Vertex):
         # cost must be positive
         return np.linalg.norm(end_vertex.state - start_vertex.state)
+    
+    @staticmethod
+    def calc_distance_and_angle(from_node, to_node):
+        dx = to_node.x - from_node.x
+        dy = to_node.y - from_node.y
+        d = math.hypot(dx, dy)
+        theta = math.atan2(dy, dx)
+        return d, theta

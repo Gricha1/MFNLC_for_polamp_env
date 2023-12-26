@@ -7,6 +7,7 @@ from mfnlc.config import env_config
 #from mfnlc.envs import Continuous2DNav
 #from mfnlc.envs.base import SafetyGymBase
 from mfnlc.plan.common.geometry import Circle
+from mfnlc.plan.common.geometry import Polygon
 from mfnlc.plan.common.path import Path
 from mfnlc.plan.common.space import SearchSpace
 from mfnlc.plan.rrt import RRT
@@ -72,13 +73,21 @@ class Planner:
             raise NotImplementedError()
         """
         env = self.env
-        robot_radius = env.environment.agent.dynamic_model.width / 2
         arrive_radius = env.SOFT_EPS
         lb, ub = env.get_constained_agent_bounds()
         resolution = np.max(ub - lb) / 100
-        
         agent = env.environment.agent.current_state
         initial_state = np.array([agent.x, agent.y, agent.theta, agent.v, agent.steer])
-        robot = Circle(initial_state[:2], robot_radius)
+
+        polygon = True
+        if polygon:
+            safe_w = 2 * 0.8
+            safe_l = 2 * 0.5
+            robot_w = env.environment.agent.dynamic_model.width
+            robot_l = env.environment.agent.dynamic_model.length
+            robot = Polygon(initial_state, w=robot_w+safe_w, l=robot_l+safe_l)
+        else:
+            robot_radius = env.environment.agent.dynamic_model.width / 2
+            robot = Circle(initial_state[:2], robot_radius)
 
         return robot, arrive_radius, resolution

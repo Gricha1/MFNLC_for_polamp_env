@@ -5,7 +5,7 @@ import numpy as np
 
 #from mfnlc.envs import Continuous2DNav
 #from mfnlc.envs.base import SafetyGymBase
-from mfnlc.plan.common.geometry import ObjectBase, Circle
+from mfnlc.plan.common.geometry import ObjectBase, Circle, Polygon
 
 
 class SearchSpace:
@@ -64,9 +64,14 @@ class SearchSpace:
         goal = env.environment.agent.goal_state
         goal_state = np.array([goal.x, goal.y, goal.theta, goal.v, goal.steer])
 
-        obstacles_centers = [obst[:2] for obst in env.maps[env.map_key]]
-        obstacle_radius = 5
-        obstacles = [Circle(obst, radius=obstacle_radius) for obst in obstacles_centers]
+        polygon = True
+        if polygon:
+            obstacles_centers = [obst for obst in env.maps[env.map_key]]
+            obstacles = [Polygon(obst, w=obst[3], l=obst[4]) for obst in obstacles_centers]
+        else:
+            obstacles_centers = [obst[:2] for obst in env.maps[env.map_key]]
+            obstacle_radius = 5
+            obstacles = [Circle(obst, radius=obstacle_radius) for obst in obstacles_centers]
         
         return SearchSpace(lb, ub, initial_state, goal_state, obstacles)
 
