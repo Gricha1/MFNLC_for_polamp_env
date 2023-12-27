@@ -167,7 +167,38 @@ class CollisionChecker:
     @staticmethod
     def overlap(obj_1: ObjectBase, obj_2: ObjectBase) -> bool:
         if isinstance(obj_1, Circle):
-            if isinstance(obj_2, Circle):
+            if isinstance(obj_2, Polygon):
+                # Проверяем, находится ли центр круга внутри прямоугольника
+                if obj_2.x - obj_2.l <= obj_1.state[0] <= obj_2.x + obj_2.l and \
+                     obj_2.y - obj_2.w <= obj_1.state[1] <= obj_2.y + obj_2.w:
+                    return True
+
+                # Проверяем пересечение границ круга и прямоугольника по осям разделения
+                radius_squared = obj_1.radius ** 2
+
+                # Проверяем пересечение горизонтальных линий прямоугольника и круга
+                y_min = obj_2.y - obj_2.w
+                y_max = obj_2.y + obj_2.w
+                if y_min <= obj_1.state[1] <= y_max:
+                    x_min = obj_2.x - obj_2.l
+                    x_max = obj_2.x + obj_2.l
+                    if (obj_1.state[0] - x_min) ** 2 <= radius_squared or \
+                    (obj_1.state[0] - x_max) ** 2 <= radius_squared:
+                        return True
+
+                # Проверяем пересечение вертикальных линий прямоугольника и круга
+                x_min = obj_2.x - obj_2.l
+                x_max = obj_2.x + obj_2.l
+                if x_min <= obj_1.state[0] <= x_max:
+                    y_min = obj_2.y - obj_2.w
+                    y_max = obj_2.y + obj_2.w
+                    if (obj_1.state[1] - y_min) ** 2 <= radius_squared or \
+                    (obj_1.state[1] - y_max) ** 2 <= radius_squared:
+                        return True
+            
+                return False
+            
+            elif isinstance(obj_2, Circle):
                 assert len(obj_2.state) == 2
                 #return np.linalg.norm(obj_1.state - obj_2.state, ord=2) <= obj_1.radius + obj_2.radius
                 return np.linalg.norm(obj_1.state[:2] - obj_2.state, ord=2) <= obj_1.radius + obj_2.radius

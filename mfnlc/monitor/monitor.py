@@ -8,7 +8,9 @@ import torch as th
 
 #from mfnlc.envs.base import ObstacleMaskWrapper
 from mfnlc.learn.tclf import TwinControlLyapunovFunction
-
+from mfnlc.plan.rrt import calc_distance_and_angle
+from mfnlc.plan.common.geometry import Polygon, Circle
+from mfnlc.plan.common.collision import CollisionChecker
 
 class LyapunovValueTable:
     def __init__(self,
@@ -133,10 +135,13 @@ class Monitor:
     def __init__(self,
                  lv_table: LyapunovValueTable,
                  goal_dim: int = 2,
+                 frame_stack: int = 0,
                  max_step_size: float = 0.2,
                  search_step_size: float = 0.01):
         self.lv_table = lv_table
         self.goal_dim = goal_dim
+        self.frame_stack = frame_stack
+        self.collision_checker = CollisionChecker()
 
         self.current_goal = None
         self.prev_goal = None
@@ -153,7 +158,6 @@ class Monitor:
                        env,
                        gt: np.ndarray) -> Tuple[np.ndarray, int]:
         if self.current_goal is None:
-            #self.current_goal = env.robot_pos
             self.current_goal = env["agent_pose"]
 
         if (gt != self.current_goal).any():
@@ -163,49 +167,74 @@ class Monitor:
             self.unit_direction_vec = self.direction_vec / np.linalg.norm(self.direction_vec)
             self.current_goal = gt
 
-        #disp, lyapunov_r = self.choose_step_size(env.get_obs(), env.hazards_pos, env.obstacle_radius, env.robot_radius)
-        disp, lyapunov_r = self.choose_step_size(env["agent_obs"], env["hazards_pos"], env["obstacle_radius"], env["robot_radius"])
+            _, self.mid_goal[2] = calc_distance_and_angle(Polygon(self.prev_goal, w=0, l=0), Polygon(self.current_goal, w=0, l=0))
+
+        disp, lyapunov_r = self.choose_step_size(env["agent_obs"], env["hazards_pos"])
         self.mid_goal = self.mid_goal + disp
 
         return self.mid_goal, lyapunov_r
 
     def choose_step_size(self, obs: np.ndarray,
-                         hazards_pos: np.ndarray,
-                         obs_radius: float = 0.15,
-                         robot_radius: float = 0.3):
+                         hazards_pos):
+        """
+            obs: with respect to previous monitor goal
+                (you should add new_subgoal_theta - query_obs_theta)
+                self.mid_goal = prevous monitor goal, len = 5
+                    where self.mid_goal.theta = angle(current_goal, prev_goal)
+                self.prev_goal = prevous RRT goal, len = 5
+                self.current_goal = next RRT goal, len = 5
+            hazards_pos: list of all obsts in env [ [x1, y1], ... ]
+        """
+        assert len(self.mid_goal) == len(self.prev_goal) == len(self.current_goal) == 5
         step_size = self.max_step_size
         lyapunov_r = 0
         disp = 0
         obs_dist_min = 0
 
-        if hazards_pos.shape[-1] != 2:
-            hazards_pos = np.array(hazards_pos).reshape([-1, 3])[:, :2]
+        #if hazards_pos.shape[-1] != 2:
+        #    hazards_pos = np.array(hazards_pos).reshape([-1, 3])[:, :2]
 
         while step_size > self.search_step_size:
             disp = self.unit_direction_vec * step_size
             disp = self.clip_disp(disp)
 
             query_obs = copy.deepcopy(obs)
-            query_obs[:2] += disp
+            # frame stack
+            # query_obs[:2] += disp
+            frame_stack = 4
+            for i in range(frame_stack):
+                query_obs[(i * self.goal_dim) : 2+(i * self.goal_dim)] += disp[:2]
 
+            #print("true V:", self.lv_table.tclf.predict(query_obs))
+            #print("max V:", self.lv_table.lyapunov_values[-1])
+            radius_collision = False
             lyapunov_r = max(self.lv_table.query(query_obs), np.linalg.norm(query_obs[:2]))
-            obs_dist = np.linalg.norm(self.mid_goal + disp - hazards_pos, axis=-1)
-            obs_dist_min = np.min(obs_dist) - obs_radius - robot_radius
-            if obs_dist_min > lyapunov_r:
+            for obstacle in hazards_pos:
+                if self.collision_checker.overlap(Circle((self.mid_goal + disp)[:2], lyapunov_r), obstacle):
+                    radius_collision = True
+                    break
+            if not radius_collision:
                 break
+            #obs_dist = np.linalg.norm( (self.mid_goal + disp)[:2] - hazards_pos, axis=-1)
+            #obs_dist_min = np.min(obs_dist) - obs_radius - robot_radius
+            #if obs_dist_min > lyapunov_r:
+            #    break
             step_size -= self.search_step_size
 
         if step_size <= self.search_step_size:
             disp = self.search_step_size * self.unit_direction_vec
             disp = self.clip_disp(disp)
-            lyapunov_r = np.linalg.norm(obs[:2] + disp)
-            obs_dist_min = np.min(
-                np.linalg.norm(self.mid_goal + disp - hazards_pos, axis=-1)) - obs_radius - robot_radius
+            lyapunov_r = np.linalg.norm(obs[:2] + disp[:2])
+            #obs_dist_min = np.min(
+            #    np.linalg.norm(self.mid_goal[:2] + disp[:2] - hazards_pos, axis=-1)) - obs_radius - robot_radius
 
-        return disp, min(lyapunov_r + robot_radius, obs_dist_min + robot_radius)
+        #return disp, min(lyapunov_r + robot_radius, obs_dist_min + robot_radius)
+        #print("step size:", step_size)
+        return disp, lyapunov_r
 
     def clip_disp(self, disp):
         total_disp = self.mid_goal + disp - self.prev_goal
+        total_disp[2] = 0
         if (np.abs(total_disp) > np.abs(self.direction_vec)).any():
             disp = self.current_goal - self.mid_goal
 

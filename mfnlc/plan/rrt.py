@@ -111,7 +111,7 @@ class RRT:
         vertex_obj = copy.deepcopy(self.robot)
         parent_obj.state = parent.state
         vertex_obj.state = vertex.state
-        _, theta = self.calc_distance_and_angle(parent_obj, vertex_obj)
+        _, theta = calc_distance_and_angle(parent_obj, vertex_obj)
 
         for state in np.linspace(parent.state, vertex.state, int(n_mid_state), endpoint=True):
             self.robot.state = state
@@ -140,7 +140,7 @@ class RRT:
             vertex_obj = copy.deepcopy(self.robot)
             parent_obj.state = parent.state
             vertex_obj.state = sampled_vertex.state
-            _, theta = self.calc_distance_and_angle(parent_obj, vertex_obj)
+            _, theta = calc_distance_and_angle(parent_obj, vertex_obj)
             sampled_vertex.state[2] = theta
 
     def _arrive(self, vertex: Tree.Vertex) -> bool:
@@ -167,10 +167,9 @@ class RRT:
         # cost must be positive
         return np.linalg.norm(end_vertex.state - start_vertex.state)
     
-    @staticmethod
-    def calc_distance_and_angle(from_node, to_node):
-        dx = to_node.x - from_node.x
-        dy = to_node.y - from_node.y
-        d = math.hypot(dx, dy)
-        theta = math.atan2(dy, dx)
-        return d, theta
+def calc_distance_and_angle(from_node, to_node):
+    dx = to_node.x - from_node.x
+    dy = to_node.y - from_node.y
+    d = math.hypot(dx, dy)
+    theta = math.atan2(dy, dx)
+    return d, theta
