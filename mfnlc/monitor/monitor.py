@@ -169,13 +169,14 @@ class Monitor:
 
             _, self.mid_goal[2] = calc_distance_and_angle(Polygon(self.prev_goal, w=0, l=0), Polygon(self.current_goal, w=0, l=0))
 
-        disp, lyapunov_r = self.choose_step_size(env["agent_obs"], env["hazards_pos"])
+        disp, lyapunov_r = self.choose_step_size(env["agent_obs"], env["hazards_pos"], env["robot"])
         self.mid_goal = self.mid_goal + disp
 
         return self.mid_goal, lyapunov_r
 
     def choose_step_size(self, obs: np.ndarray,
-                         hazards_pos):
+                         hazards_pos,
+                         robot):
         """
             obs: with respect to previous monitor goal
                 (you should add new_subgoal_theta - query_obs_theta)
@@ -208,9 +209,10 @@ class Monitor:
             #print("true V:", self.lv_table.tclf.predict(query_obs))
             #print("max V:", self.lv_table.lyapunov_values[-1])
             radius_collision = False
+            robot_radius = np.sqrt((robot.w/2) ** 2 + (robot.l/2) ** 2)
             lyapunov_r = max(self.lv_table.query(query_obs), np.linalg.norm(query_obs[:2]))
             for obstacle in hazards_pos:
-                if self.collision_checker.overlap(Circle((self.mid_goal + disp)[:2], lyapunov_r), obstacle):
+                if self.collision_checker.overlap(Circle((self.mid_goal + disp)[:2], lyapunov_r + robot_radius), obstacle):
                     radius_collision = True
                     break
             if not radius_collision:
