@@ -19,6 +19,7 @@ class Polygon(ObjectBase):
         assert len(self.state) == 5
         self.w = w # half for obst, full for ego
         self.l = l # half for obst, full for ego
+        self.center_state = True
 
     @property
     def x(self):
@@ -30,6 +31,12 @@ class Polygon(ObjectBase):
     def theta(self):
         return self.state[2]
     
+    @x.setter 
+    def x(self, x):
+        self.state[0] = x
+    @y.setter 
+    def y(self, y):
+        self.state[1] = y
     @theta.setter 
     def theta(self, angle):
         self.state[2] = angle

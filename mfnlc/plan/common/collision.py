@@ -83,28 +83,7 @@ def intersectPoint(point, polygon, epsilon=1e-4):
       point = [x, y]
       polygon = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
     """
-    """
     result = False
-    i = 0
-    j = len(polygon) - 1
-    for i in range(len(polygon)):
-        if ((polygon[i][1] > point[1]) != (polygon[j][1] > point[1]) and (point[0] < (polygon[j][0]\
-            - polygon[i][0]) * (point[1] - polygon[i][1]) / (polygon[j][1] - polygon[i][1] + epsilon) + polygon[i][0])):
-            result = not result
-        j = i
-        i += 1
-
-    return result
-    """
-    result = False
-    #i = 0
-    #j = len(polygon) - 1
-    #for i in range(len(polygon)):
-    #    if ((polygon[i][1] > point[1]) != (polygon[j][1] > point[1]) and (point[0] < (polygon[j][0]\
-    #        - polygon[i][0]) * (point[1] - polygon[i][1]) / (polygon[j][1] - polygon[i][1] + epsilon) + polygon[i][0])):
-    #        result = not result
-    #    j = i
-    #    i += 1
     if point[0] > polygon[0][0] and point[1] > polygon[0][1] and\
        point[0] < polygon[2][0] and point[1] < polygon[2][1]:
         result = True
@@ -140,20 +119,11 @@ def collision_dist(traj_array, obstacles_array, safe_dist) -> np.ndarray:
 
     return dists
 
-def collision(node, bbObs=None):
-    """
-    bbObs = getBB([bbObs.x, bbObs.y, bbObs.theta, bbObs.w, bbObs.l], ego=False)
-    if node is None:
-        return False
-    if intersectPoint([node.x, node.y], bbObs):
-        return True
-    if node.theta != None:
+def collision(node, bbObs=None, center_state=False):
+    if center_state:
+        bb = getBB([node.x, node.y, node.theta, node.w, node.l], ego=False)
+    else:
         bb = getBB([node.x, node.y, node.theta], w=node.w, l=node.l)
-        if intersectPolygons(bb, bbObs, rl=False):
-            return True
-    return False  # safe
-    """
-    bb = getBB([node.x, node.y, node.theta], w=node.w, l=node.l)
     bbObs = getBB([bbObs.x, bbObs.y, bbObs.theta, bbObs.w, bbObs.l], ego=False)
     if intersectPoint([node.x, node.y], bbObs):        
         return True
@@ -172,31 +142,10 @@ class CollisionChecker:
                 if obj_2.x - obj_2.l <= obj_1.state[0] <= obj_2.x + obj_2.l and \
                      obj_2.y - obj_2.w <= obj_1.state[1] <= obj_2.y + obj_2.w:
                     return True
-
-                # Проверяем пересечение границ круга и прямоугольника по осям разделения
-                radius_squared = obj_1.radius ** 2
-
-                # Проверяем пересечение горизонтальных линий прямоугольника и круга
-                y_min = obj_2.y - obj_2.w
-                y_max = obj_2.y + obj_2.w
-                if y_min <= obj_1.state[1] <= y_max:
-                    x_min = obj_2.x - obj_2.l
-                    x_max = obj_2.x + obj_2.l
-                    if (obj_1.state[0] - x_min) ** 2 <= radius_squared or \
-                    (obj_1.state[0] - x_max) ** 2 <= radius_squared:
-                        return True
-
-                # Проверяем пересечение вертикальных линий прямоугольника и круга
-                x_min = obj_2.x - obj_2.l
-                x_max = obj_2.x + obj_2.l
-                if x_min <= obj_1.state[0] <= x_max:
-                    y_min = obj_2.y - obj_2.w
-                    y_max = obj_2.y + obj_2.w
-                    if (obj_1.state[1] - y_min) ** 2 <= radius_squared or \
-                    (obj_1.state[1] - y_max) ** 2 <= radius_squared:
-                        return True
-            
-                return False
+                # Проверяем пересечение вертикальных границ круга и прямоугольника
+                h_dist = max(0, abs(obj_1.state[0] - obj_2.x) - obj_2.l)
+                v_dist = max(0, abs(obj_1.state[1] - obj_2.y) - obj_2.w)
+                return (h_dist**2 + v_dist**2) <= (obj_1.radius**2)
             
             elif isinstance(obj_2, Circle):
                 assert len(obj_2.state) == 2
@@ -204,16 +153,42 @@ class CollisionChecker:
                 return np.linalg.norm(obj_1.state[:2] - obj_2.state, ord=2) <= obj_1.radius + obj_2.radius
         elif isinstance(obj_1, Polygon):
             if isinstance(obj_2, Polygon):
-                return collision(node=obj_1, bbObs=obj_2)
-                #bb = getBB([node.x, node.y, node.theta], w=node.w, l=node.l)
-                #bbObs = obj_2
-                #bbObs = getBB([bbObs.x, bbObs.y, bbObs.theta, bbObs.w, bbObs.l], ego=False)
-                #return (obj_1.x > bbObs[0][0] and obj_1.y > bbObs[0][1]) and \
-                #       (obj_1.x < bbObs[2][0] and obj_1.y < bbObs[2][1])
+                if obj_1.center_state and obj_2.center_state:
+                    return collision(node=obj_1, bbObs=obj_2, center_state=True)
+                elif not obj_1.center_state:
+                    return collision(node=obj_1, bbObs=obj_2)
+                else:
+                    assert 1 == 0
             else:
                 assert 1 == 0
         else:
             assert 1 == 0
+
+    def overlap_polygon_between_states(self, obj_1: Polygon, state_1: list, 
+                                       state_2: list, obj_2: Polygon) -> bool:
+        assert len(state_1) == len(state_2) == 5
+        obj_init = deepcopy(obj_1)
+        obj_init.state = deepcopy(state_1)
+        obj_init.theta = obj_1.theta
+        if self.overlap(obj_init, obj_2):
+            return True
+        
+        obj_middle = deepcopy(obj_1)
+        middle_x = (state_1[0] + state_2[0]) / 2
+        middle_y = (state_1[1] + state_2[1]) / 2
+        obj_middle.x = middle_x
+        obj_middle.y = middle_y
+        obj_middle.l = np.sqrt((middle_x - state_1[0]) ** 2 + (middle_y - state_1[1]) ** 2)
+        if self.overlap(obj_middle, obj_2):
+            return True
+        
+        obj_end = deepcopy(obj_1)
+        obj_end.state = deepcopy(state_2)
+        obj_end.theta = obj_1.theta
+        if self.overlap(obj_end, obj_2):
+            return True
+        
+        return False
 
     @staticmethod
     def seq_to_seq_overlap(traj: List[ObjectBase],

@@ -86,6 +86,7 @@ class Planner:
             robot_w = env.environment.agent.dynamic_model.width
             robot_l = env.environment.agent.dynamic_model.length
             robot = Polygon(initial_state, w=robot_w+safe_w, l=robot_l+safe_l)
+            robot.center_state = False
         else:
             robot_radius = env.environment.agent.dynamic_model.width / 2
             robot = Circle(initial_state[:2], robot_radius)

@@ -134,8 +134,8 @@ class LyapunovValueTable:
 class Monitor:
     def __init__(self,
                  lv_table: LyapunovValueTable,
-                 goal_dim: int = 2,
-                 frame_stack: int = 0,
+                 goal_dim: int = 5,
+                 frame_stack: int = 4,
                  max_step_size: float = 0.2,
                  search_step_size: float = 0.01):
         self.lv_table = lv_table
@@ -158,21 +158,21 @@ class Monitor:
                        env,
                        gt: np.ndarray) -> Tuple[np.ndarray, int]:
         if self.current_goal is None:
-            self.current_goal = env["agent_pose"]
-
+            self.current_goal = copy.deepcopy(env["agent_pose"])
+     
         if (gt != self.current_goal).any():
-            self.prev_goal = self.current_goal
-            self.mid_goal = self.prev_goal
+            self.prev_goal = copy.deepcopy(self.current_goal)
+            self.mid_goal = copy.deepcopy(self.prev_goal)
             self.direction_vec = gt - self.current_goal
             self.unit_direction_vec = self.direction_vec / np.linalg.norm(self.direction_vec)
             self.current_goal = gt
 
             _, self.mid_goal[2] = calc_distance_and_angle(Polygon(self.prev_goal, w=0, l=0), Polygon(self.current_goal, w=0, l=0))
 
-        disp, lyapunov_r = self.choose_step_size(env["agent_obs"], env["hazards_pos"], env["robot"])
+        disp, lyapunov_r, lyapunov_r_plus_robot_r, collision_happend = self.choose_step_size(env["agent_obs"], env["hazards_pos"], env["robot"])
         self.mid_goal = self.mid_goal + disp
 
-        return self.mid_goal, lyapunov_r
+        return self.mid_goal, lyapunov_r, lyapunov_r_plus_robot_r, collision_happend
 
     def choose_step_size(self, obs: np.ndarray,
                          hazards_pos,
@@ -185,59 +185,80 @@ class Monitor:
                 self.prev_goal = prevous RRT goal, len = 5
                 self.current_goal = next RRT goal, len = 5
             hazards_pos: list of all obsts in env [ [x1, y1], ... ]
+            self.mid_goal[2] may be not zero
+            self.prev_goal[2], self.current_goal[2], disp[2] should be zero! as [3][4]
         """
-        assert len(self.mid_goal) == len(self.prev_goal) == len(self.current_goal) == 5
+        assert len(hazards_pos) == 4, "4 obsts for current map"
+        assert len(self.mid_goal) == len(self.prev_goal) == \
+               len(self.current_goal) == len(self.unit_direction_vec) == \
+               len(self.direction_vec) == 5
+        assert len(obs) == 20
+        for i in range(2, 5):
+            if not (self.current_goal[i] == self.prev_goal[i] == \
+                   self.unit_direction_vec[i] == self.direction_vec[i] == 0):
+                print(" current goal: ", self.current_goal)
+                print(" prev_goal goal: ", self.prev_goal)
+                print(" unit_direction_vec: ", self.unit_direction_vec)
+                print(" direction_vec: ", self.direction_vec)
+                assert 1 == 0
         step_size = self.max_step_size
         lyapunov_r = 0
         disp = 0
         obs_dist_min = 0
-
-        #if hazards_pos.shape[-1] != 2:
-        #    hazards_pos = np.array(hazards_pos).reshape([-1, 3])[:, :2]
-
+        collision_happend = True
+        robot_center_state = robot.center_state
+        robot_shifted_state = robot.shifted_state
+        dist_to_shifted_pose = np.sqrt((robot_center_state.x - robot_shifted_state.x) ** 2 + \
+                                        (robot_center_state.y - robot_shifted_state.y) ** 2)
+        robot_radius = np.sqrt((robot.l/2 - dist_to_shifted_pose) ** 2 + \
+                                (robot.w/2) ** 2)
+        robot_radius = robot_radius / 2
+        
         while step_size > self.search_step_size:
             disp = self.unit_direction_vec * step_size
             disp = self.clip_disp(disp)
+            for i in range(2, 5):
+                assert disp[i] == 0
 
             query_obs = copy.deepcopy(obs)
-            # frame stack
-            # query_obs[:2] += disp
-            frame_stack = 4
-            for i in range(frame_stack):
+            for i in range(self.frame_stack):
                 query_obs[(i * self.goal_dim) : 2+(i * self.goal_dim)] += disp[:2]
-
-            #print("true V:", self.lv_table.tclf.predict(query_obs))
-            #print("max V:", self.lv_table.lyapunov_values[-1])
             radius_collision = False
-            robot_radius = np.sqrt((robot.w/2) ** 2 + (robot.l/2) ** 2)
             lyapunov_r = max(self.lv_table.query(query_obs), np.linalg.norm(query_obs[:2]))
             for obstacle in hazards_pos:
                 if self.collision_checker.overlap(Circle((self.mid_goal + disp)[:2], lyapunov_r + robot_radius), obstacle):
                     radius_collision = True
                     break
             if not radius_collision:
+                collision_happend = False
                 break
-            #obs_dist = np.linalg.norm( (self.mid_goal + disp)[:2] - hazards_pos, axis=-1)
-            #obs_dist_min = np.min(obs_dist) - obs_radius - robot_radius
-            #if obs_dist_min > lyapunov_r:
-            #    break
             step_size -= self.search_step_size
 
         if step_size <= self.search_step_size:
             disp = self.search_step_size * self.unit_direction_vec
             disp = self.clip_disp(disp)
-            lyapunov_r = np.linalg.norm(obs[:2] + disp[:2])
-            #obs_dist_min = np.min(
-            #    np.linalg.norm(self.mid_goal[:2] + disp[:2] - hazards_pos, axis=-1)) - obs_radius - robot_radius
+            #lyapunov_r = np.linalg.norm(obs[:2] + disp[:2])
+            # this wasnt in the first version
+            query_obs = copy.deepcopy(obs)
+            for i in range(self.frame_stack):
+                query_obs[(i * self.goal_dim) : 2+(i * self.goal_dim)] += disp[:2]
+            radius_collision = False
+            lyapunov_r = max(self.lv_table.query(query_obs), np.linalg.norm(query_obs[:2]))
+            for obstacle in hazards_pos:
+                if self.collision_checker.overlap(Circle((self.mid_goal + disp)[:2], lyapunov_r + robot_radius), obstacle):
+                    radius_collision = True
+                    break
+            if not radius_collision:
+                collision_happend = False
+            # this wasnt in the first version
 
-        #return disp, min(lyapunov_r + robot_radius, obs_dist_min + robot_radius)
-        #print("step size:", step_size)
-        return disp, lyapunov_r
+        return disp, lyapunov_r, lyapunov_r + robot_radius, collision_happend
 
     def clip_disp(self, disp):
         total_disp = self.mid_goal + disp - self.prev_goal
         total_disp[2] = 0
         if (np.abs(total_disp) > np.abs(self.direction_vec)).any():
             disp = self.current_goal - self.mid_goal
+            disp[2] = 0
 
         return disp

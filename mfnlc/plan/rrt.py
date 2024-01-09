@@ -5,7 +5,7 @@ import math
 import numpy as np
 
 from mfnlc.plan.common.collision import CollisionChecker
-from mfnlc.plan.common.geometry import ObjectBase
+from mfnlc.plan.common.geometry import ObjectBase, Circle, Polygon
 from mfnlc.plan.common.path import Path
 from mfnlc.plan.common.space import SearchSpace
 
@@ -71,6 +71,7 @@ class RRT:
         self.collision_checker = CollisionChecker()
         self.tree = Tree(search_space)
 
+        self.with_dubins_curve = False
         self.search_space = search_space
         self.robot = robot
         self.arrive_radius = arrive_radius
@@ -94,7 +95,7 @@ class RRT:
             collision, cost = self._steer(parent, sampled_vertex)
             if not collision:
                 sampled_vertex.cost = cost
-                self._set_theta_to_vertex(parent, sampled_vertex)
+                #self._set_theta_to_vertex(parent, sampled_vertex) #this is useless
                 self.tree.insert_vertex(parent, sampled_vertex)
                 if self._arrive(sampled_vertex):
                     final_vertex = sampled_vertex
@@ -105,43 +106,58 @@ class RRT:
     def _steer(self,
                parent: Tree.Vertex,
                vertex: Tree.Vertex) -> Tuple[bool, float]:
-        n_mid_state = np.abs(parent.state - vertex.state).max() // self.collision_checker_resolution + 1
+        if not self.with_dubins_curve:
+            n_mid_state = np.abs(parent.state - vertex.state).max() // self.collision_checker_resolution + 1
 
+            parent_obj = copy.deepcopy(self.robot)
+            vertex_obj = copy.deepcopy(self.robot)
+            parent_obj.state = copy.deepcopy(parent.state)
+            vertex_obj.state = copy.deepcopy(vertex.state)
+            _, theta = calc_distance_and_angle(parent_obj, vertex_obj)
+
+            if isinstance(self.robot, Circle):
+            #if True:
+                for state in np.linspace(parent.state, vertex.state, int(n_mid_state), endpoint=True):
+                    self.robot.state = copy.deepcopy(state)
+                    self.robot.theta = theta
+                    for obstacle in self.search_space.obstacles:
+                        if self.collision_checker.overlap(self.robot, obstacle):
+                            return True, np.inf
+            elif isinstance(self.robot, Polygon):
+                self.robot.theta = theta
+                for obstacle in self.search_space.obstacles:
+                    if self.collision_checker.overlap_polygon_between_states(
+                                                        self.robot, parent.state, 
+                                                        vertex.state, obstacle):
+                        return True, np.inf
+            else:
+                assert 1 == 0
+
+            if ENABLE_SEQ_TO_SEQ_COLLISION_CHECKING:
+                init = copy.deepcopy(self.robot)
+                end = copy.deepcopy(self.robot)
+                init.state = parent.state
+                end.state = vertex.state
+                traj = [init, end]
+
+                if self.collision_checker.seq_to_seq_overlap(traj, self.search_space.obstacles):
+                    return True, np.inf
+
+            # euclidian cost
+            cost = parent.cost + self._default_dist(parent, vertex)
+
+            return False, cost
+        
+        else:
+            pass
+        
+    def _set_theta_to_vertex(self, parent: Tree.Vertex, sampled_vertex: Tree.Vertex):
         parent_obj = copy.deepcopy(self.robot)
         vertex_obj = copy.deepcopy(self.robot)
         parent_obj.state = parent.state
-        vertex_obj.state = vertex.state
+        vertex_obj.state = sampled_vertex.state
         _, theta = calc_distance_and_angle(parent_obj, vertex_obj)
-
-        for state in np.linspace(parent.state, vertex.state, int(n_mid_state), endpoint=True):
-            self.robot.state = state
-            self.robot.theta = theta
-            for obstacle in self.search_space.obstacles:
-                if self.collision_checker.overlap(self.robot, obstacle):
-                    return True, np.inf
-
-        if ENABLE_SEQ_TO_SEQ_COLLISION_CHECKING:
-            init = copy.deepcopy(self.robot)
-            end = copy.deepcopy(self.robot)
-            init.state = parent.state
-            end.state = vertex.state
-            traj = [init, end]
-
-            if self.collision_checker.seq_to_seq_overlap(traj, self.search_space.obstacles):
-                return True, np.inf
-
-        # euclidian cost
-        cost = parent.cost + self._default_dist(parent, vertex)
-
-        return False, cost
-    
-    def _set_theta_to_vertex(self, parent: Tree.Vertex, sampled_vertex: Tree.Vertex):
-            parent_obj = copy.deepcopy(self.robot)
-            vertex_obj = copy.deepcopy(self.robot)
-            parent_obj.state = parent.state
-            vertex_obj.state = sampled_vertex.state
-            _, theta = calc_distance_and_angle(parent_obj, vertex_obj)
-            sampled_vertex.state[2] = theta
+        sampled_vertex.state[2] = theta
 
     def _arrive(self, vertex: Tree.Vertex) -> bool:
         #return (np.abs(vertex.state - self.search_space.goal_state) < self.arrive_radius).all()

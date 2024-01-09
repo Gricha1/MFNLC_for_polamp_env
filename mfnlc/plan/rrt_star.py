@@ -29,11 +29,11 @@ class RRTStar(RRT):
                 # choose parent and insert
                 new_parent, new_cost = self.choose_parent(sampled_vertex, near_vertices)
                 if new_parent is not None:
-                    self._set_theta_to_vertex(new_parent, sampled_vertex)
+                    #self._set_theta_to_vertex(new_parent, sampled_vertex) #this is useless
                     self.tree.insert_vertex(new_parent, sampled_vertex)
                     sampled_vertex.cost = new_cost
                 else:
-                    self._set_theta_to_vertex(parent, sampled_vertex)
+                    #self._set_theta_to_vertex(parent, sampled_vertex) #this is useless
                     self.tree.insert_vertex(parent, sampled_vertex)
 
                 self.rewire(sampled_vertex, near_vertices)
