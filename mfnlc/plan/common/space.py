@@ -23,40 +23,7 @@ class SearchSpace:
 
     @classmethod
     def build_from_env(cls, env) -> 'SearchSpace':
-        """
-        if isinstance(env.unwrapped, Continuous2DNav):
-            env: Continuous2DNav = env.unwrapped
 
-            lb = env.floor_lb
-            ub = env.floor_ub
-
-            initial_state = env.robot_pos
-            goal_state = env.goal
-
-            obstacles_centers = env.obstacle_centers
-            obstacle_radius = env.obstacle_radius
-            obstacles = [Circle(obst, radius=obstacle_radius) for obst in obstacles_centers]
-
-        elif issubclass(type(env.unwrapped), SafetyGymBase):
-            #env: Engine = env.unwrapped.env
-            env = env.unwrapped.env
-
-            floor_extends = env.placements_extents
-            lb = np.array(floor_extends[:2])
-            ub = np.array(floor_extends[2:])
-
-            initial_state = env.robot_pos[:2]
-            goal_state = env.goal_pos[:2]
-
-            obstacles_centers = env.hazards_pos
-            obstacle_radius = env.hazards_size
-            obstacles = [Circle(obst[:2], radius=obstacle_radius) for obst in obstacles_centers]
-        else:
-            raise NotImplementedError
-        """
-        
-        lb = env.observation_space["observation"].low
-        ub = env.observation_space["observation"].high
         lb, ub = env.get_constained_agent_bounds()
         
         agent = env.environment.agent.current_state
@@ -65,7 +32,18 @@ class SearchSpace:
         goal_state = np.array([goal.x, goal.y, goal.theta, goal.v, goal.steer])
 
         polygon = True
+        with_dubins_curve = True
         if polygon:
+            if not with_dubins_curve:
+                lb[2] = 0
+                ub[2] = 0
+            assert -np.pi <= initial_state[2] <= np.pi
+            assert -np.pi <= goal_state[2] <= np.pi
+            assert len(initial_state) == 5
+            assert len(goal_state) == 5
+            for i in range(3, 5):
+                initial_state[i] = 0
+                goal_state[i] = 0
             obstacles_centers = [obst for obst in env.maps[env.map_key]]
             obstacles = [Polygon(obst, w=obst[3], l=obst[4]) for obst in obstacles_centers]
         else:

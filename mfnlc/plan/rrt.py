@@ -2,6 +2,7 @@ import copy
 from typing import Callable, Union, Tuple
 import math
 
+import dubins
 import numpy as np
 
 from mfnlc.plan.common.collision import CollisionChecker
@@ -20,6 +21,7 @@ class Tree:
             self.parent = parent
             self.children = []
             self.cost = 0.0
+            self.kinodynamically_feasible_path = None # = [self.parent, ...] doesn't include self.state
 
     def __init__(self, search_space: SearchSpace):
         self.search_space = search_space
@@ -49,7 +51,7 @@ class Tree:
         return Tree.Vertex(samples[0])
 
     def nearest_vertex(self, sampled_vertex: 'Tree.Vertex') -> 'Tree.Vertex':
-        dist = np.linalg.norm(sampled_vertex.state - np.array(self.all_vertices_state), axis=-1)
+        dist = np.linalg.norm((sampled_vertex.state - np.array(self.all_vertices_state))[:, :2], axis=-1)
         nearest_index = np.argmin(dist)
 
         return self.all_vertices[nearest_index]
@@ -62,6 +64,10 @@ class Tree:
 
 
 class RRT:
+    """
+        TreeState = [x, y, theta, 0, 0]
+        with_dubins_curve = True, use dubins curve in _steer function
+    """
     def __init__(self,
                  search_space: SearchSpace,
                  robot: ObjectBase,
@@ -71,7 +77,9 @@ class RRT:
         self.collision_checker = CollisionChecker()
         self.tree = Tree(search_space)
 
-        self.with_dubins_curve = False
+        self.with_dubins_curve = True
+        if self.with_dubins_curve:
+            self.dubins_resolution = 1 # distance between points
         self.search_space = search_space
         self.robot = robot
         self.arrive_radius = arrive_radius
@@ -92,10 +100,9 @@ class RRT:
                 print("rrt iter:", i)
             sampled_vertex = self.tree.sample(heuristic, n_sample)
             parent = self.tree.nearest_vertex(sampled_vertex)
-            collision, cost = self._steer(parent, sampled_vertex)
+            collision, cost, _ = self._steer(parent, sampled_vertex)
             if not collision:
                 sampled_vertex.cost = cost
-                #self._set_theta_to_vertex(parent, sampled_vertex) #this is useless
                 self.tree.insert_vertex(parent, sampled_vertex)
                 if self._arrive(sampled_vertex):
                     final_vertex = sampled_vertex
@@ -105,8 +112,42 @@ class RRT:
 
     def _steer(self,
                parent: Tree.Vertex,
-               vertex: Tree.Vertex) -> Tuple[bool, float]:
-        if not self.with_dubins_curve:
+               vertex: Tree.Vertex) -> Tuple[bool, float, np.ndarray]:
+        
+        if self.with_dubins_curve:
+            assert -np.pi <= parent.state[2] <= np.pi, f"angle: {parent.state[2]}"
+            assert -np.pi <= vertex.state[2] <= np.pi
+            parent.state[2] = (parent.state[2] + 2*np.pi) % (2*np.pi) # to [0, 2pi]
+            vertex.state[2] = (vertex.state[2] + 2*np.pi) % (2*np.pi) # to [0, 2pi]
+            path = dubins.shortest_path(parent.state, vertex.state, self.robot.turning_radius)
+            parent.state[2] = parent.state[2] - 2*np.pi if parent.state[2] > np.pi else parent.state[2] # to [-pi, pi]
+            vertex.state[2] = vertex.state[2] - 2*np.pi if vertex.state[2] > np.pi else vertex.state[2] # to [-pi, pi]
+            configurations, _ = path.sample_many(self.dubins_resolution)
+            cost = parent.cost + len(configurations)  # Примерная оценка стоимости: длина пути
+            for ind, state in enumerate(configurations):
+                assert len(state) == 3, "len state from path should be 3"
+                state = list(state)
+                state[2] = state[2] - 2*np.pi if state[2] > np.pi else state[2] # to [-pi, pi]
+                state.extend([0, 0])
+                if ind == 0:
+                    for i in range(5):
+                        assert state[i] == parent.state[i], "first state == parent"
+                configurations[ind] = state
+                self.robot.state = copy.deepcopy(state)
+                if state[0] < self.search_space.lb[0] or state[0] > self.search_space.ub[0] or \
+                   state[1] < self.search_space.lb[1] or state[1] > self.search_space.ub[1]:
+                    return True, np.inf, None
+                for obstacle in self.search_space.obstacles:
+                    if self.collision_checker.overlap(self.robot, obstacle):
+                        return True, np.inf, None
+            self.robot.state = copy.deepcopy(vertex.state) 
+            for obstacle in self.search_space.obstacles:
+                if self.collision_checker.overlap(self.robot, obstacle):
+                        return True, np.inf, None
+                
+            return False, cost, configurations
+        
+        else:
             n_mid_state = np.abs(parent.state - vertex.state).max() // self.collision_checker_resolution + 1
 
             parent_obj = copy.deepcopy(self.robot)
@@ -116,20 +157,19 @@ class RRT:
             _, theta = calc_distance_and_angle(parent_obj, vertex_obj)
 
             if isinstance(self.robot, Circle):
-            #if True:
                 for state in np.linspace(parent.state, vertex.state, int(n_mid_state), endpoint=True):
                     self.robot.state = copy.deepcopy(state)
                     self.robot.theta = theta
                     for obstacle in self.search_space.obstacles:
                         if self.collision_checker.overlap(self.robot, obstacle):
-                            return True, np.inf
+                            return True, np.inf, None
             elif isinstance(self.robot, Polygon):
                 self.robot.theta = theta
                 for obstacle in self.search_space.obstacles:
                     if self.collision_checker.overlap_polygon_between_states(
                                                         self.robot, parent.state, 
                                                         vertex.state, obstacle):
-                        return True, np.inf
+                        return True, np.inf, None
             else:
                 assert 1 == 0
 
@@ -141,16 +181,13 @@ class RRT:
                 traj = [init, end]
 
                 if self.collision_checker.seq_to_seq_overlap(traj, self.search_space.obstacles):
-                    return True, np.inf
+                    return True, np.inf, None
 
             # euclidian cost
             cost = parent.cost + self._default_dist(parent, vertex)
 
-            return False, cost
-        
-        else:
-            pass
-        
+            return False, cost, None            
+
     def _set_theta_to_vertex(self, parent: Tree.Vertex, sampled_vertex: Tree.Vertex):
         parent_obj = copy.deepcopy(self.robot)
         vertex_obj = copy.deepcopy(self.robot)
@@ -167,12 +204,22 @@ class RRT:
         if final_vertex is not None:
             print(f"cost: {final_vertex.cost}")
             _vertex = final_vertex
-            path = [self.search_space.goal_state]
-            while _vertex:
-                path.append(_vertex.state)
-                _vertex = _vertex.parent
+            if self.with_dubins_curve:
+                path = [_vertex.state]
+                # Идем от предпоследней вершины, чтобы начать с целевого состояния и последовать к краю дерева
+                while _vertex.parent:
+                    path.extend(reversed(_vertex.kinodynamically_feasible_path))
+                    _vertex = _vertex.parent
 
-            return Path(list(reversed(path)))
+                return Path(list(reversed(path)))
+            
+            else:
+                path = [self.search_space.goal_state]
+                while _vertex:
+                    path.append(_vertex.state)
+                    _vertex = _vertex.parent
+
+                return Path(list(reversed(path)))
 
         print("Warning: No path found")
         return Path([])

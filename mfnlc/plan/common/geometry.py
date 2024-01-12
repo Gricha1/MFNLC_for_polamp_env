@@ -19,7 +19,8 @@ class Polygon(ObjectBase):
         assert len(self.state) == 5
         self.w = w # half for obst, full for ego
         self.l = l # half for obst, full for ego
-        self.center_state = True
+        self.center_state = True # for agent
+        self.turning_radius = True # for agent
 
     @property
     def x(self):
