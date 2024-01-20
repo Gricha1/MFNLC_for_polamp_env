@@ -9,8 +9,8 @@ from .base import EnvBase
 from .car import CarNav
 from .doggo import DoggoNav
 from .nav import Continuous2DNav
-from .point import PointNav
-from .polamp import PolampEnv
+from .point import PointNav, GCPointNav
+#from .polamp import PolampEnv
 
 
 def get_env(env_name: str):
@@ -30,8 +30,8 @@ def get_env(env_name: str):
         env = TimeLimit(Continuous2DNav(no_obstacle=True), env_config[robot_name]["max_step"])
     elif env_name == "Point-no-obst":
         env = TimeLimit(PointNav(no_obstacle=True), env_config[robot_name]["max_step"])
-    elif env_name == "Polamp_env-no-obst":
-        env = TimeLimit(PolampEnv(no_obstacle=True), env_config[robot_name]["max_step"])
+    #elif env_name == "Polamp_env-no-obst":
+    #    env = TimeLimit(PolampEnv(no_obstacle=True), env_config[robot_name]["max_step"])
     elif env_name == "Car-no-obst":
         env = TimeLimit(CarNav(no_obstacle=True), env_config[robot_name]["max_step"])
     elif env_name == "Doggo-no-obst":
@@ -45,6 +45,10 @@ def get_env(env_name: str):
         env = CarNav(end_on_collision=True)
     elif env_name == "Doggo-eval":
         env = DoggoNav(end_on_collision=True)
+    # goal conditioned envs
+    elif env_name == "GCPoint":
+        #env = TimeLimit(GCPointNav(), env_config[robot_name]["max_step"])
+        env = GCPointNav(max_episode_steps=env_config[robot_name]["max_step"])
     else:
         raise NotImplementedError(f"Unsupported environment - {env_name}")
 

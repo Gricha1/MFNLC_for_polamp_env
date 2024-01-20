@@ -138,6 +138,18 @@ python exps/train/no_obstacle/custom_lyapunov_td3/polamp_env.py
 python exps/hierachical/custom_rrt_lyapunov/polamp_env.py
 ```
 
+# train RIS point env
+```commandline
+cd mfnlc
+python exps/train/obstacle/ris/point.py
+```
+
+# train TD3 point env
+```commandline
+cd mfnlc
+python exps/train/obstacle/td3/point.py
+```
+
 # troubles
 No such file or directory: '/home/reedgern/mipt_work_space/sem_3/NIR/other_algs/MFNLC/mfnlc/mfnlc_data/lyapunov_td3/Nav/model.zip.zip'
 

@@ -1,11 +1,12 @@
 from abc import abstractmethod
 from typing import Dict
+import copy
 
 import gym
 import numpy as np
 import cv2
 #import safety_gym  # noqa
-from gym import Env
+from gym import Env, GoalEnv
 
 from mfnlc.config import env_config
 
@@ -280,6 +281,194 @@ class SafetyGymBase(EnvBase):
         image = self.env.sim.render(shape[0], shape[1], camera_name="fixedfar", mode='offscreen')
         rotated_image = cv2.rotate(image, cv2.ROTATE_180)
         return rotated_image
+    
+class GCSafetyGymBase(SafetyGymBase):    
+
+    def __init__(self,
+                 env_name,
+                 no_obstacle=False,
+                 end_on_collision=False,
+                 fixed_init_and_goal=False,
+                 max_episode_steps=100) -> None:
+        super().__init__(env_name=env_name,
+                         no_obstacle=no_obstacle,
+                         end_on_collision=end_on_collision,
+                         fixed_init_and_goal=fixed_init_and_goal)
+        assert self.num_relevant_dim == 2 # goal x, y
+        class EnvSpec():
+            def __init__(self):
+                self.max_episode_steps = max_episode_steps
+        self.spec = EnvSpec()
+        # Reward config
+        self.collision_penalty = -100
+        self.arrive_reward = 0
+        self.time_step_reward = -1
+
+    def _build_space(self):
+        self.action_space = self.env.action_space
+
+        max_observation = 10
+        if self.no_obstacle:
+            observation_high = max_observation * np.ones(
+                (self.num_relevant_dim + self.robot_obs_size),
+                dtype=np.float32)
+        else:
+            observation_high = max_observation * np.ones(
+                (self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs * self.num_relevant_dim),
+                dtype=np.float32)
+        observation_low = -observation_high
+        #self.observation_space = gym.spaces.Box(observation_low, observation_high, dtype=np.float32)
+        self.observation_space = gym.spaces.Dict({
+            "observation": gym.spaces.Box(observation_low, observation_high, dtype=np.float32),
+            "desired_goal": gym.spaces.Box(observation_low, observation_high, dtype=np.float32),
+            "achieved_goal": gym.spaces.Box(observation_low, observation_high, dtype=np.float32),
+        })
+    
+    def compute_reward(self, achieved_goal, desired_goal, info):
+        """Compute the step reward. This externalizes the reward function and makes
+        it dependent on an a desired goal and the one that was achieved. If you wish to include
+        additional rewards that are independent of the goal, you can include the necessary values
+        to derive it in info and compute it accordingly.
+
+        Args:
+            achieved_goal (object): the goal that was achieved during execution
+            desired_goal (object): the desired goal that we asked the agent to attempt to achieve
+            info (dict): an info dictionary with additional information
+
+        Returns:
+            float: The reward that corresponds to the provided achieved goal w.r.t. to the desired
+            goal. Note that the following should always hold true:
+
+                ob, reward, done, info = env.step()
+                assert reward == env.compute_reward(ob['achieved_goal'], ob['goal'], info)
+        """
+        #reward = self.get_goal_reward() + collision * self.collision_penalty + arrive * self.arrive_reward
+        # input batch_shape x state_shape
+        collisions = np.array([float(el["collision"]) for el in info])
+        return self.time_step_reward * np.ones_like(achieved_goal[:, 0]) + self.collision_penalty * collisions
+            
+    def obstacle_goal_obs(self) -> np.ndarray:
+        """
+            get obstacle observation with respect to goal
+        """
+        if self.no_obstacle:
+            return np.array([])
+
+        # get distance to each obstacle upto self.obstacle_in_obs nearest obstacles
+        vec_to_obs = (self.env.hazards_pos - self.env.goal_pos)[:, :self.num_relevant_dim]
+        dist_to_obs = np.linalg.norm(vec_to_obs, ord=2, axis=-1)
+        order = dist_to_obs.argsort()[:self.obstacle_in_obs]
+        flattened_vec = vec_to_obs[order].flatten()
+        # in case of that the obstacle number in environment is smaller than self.obstacle_in_obs
+        output = np.zeros(self.obstacle_in_obs * self.num_relevant_dim)
+        output[:flattened_vec.shape[0]] = flattened_vec
+        return output
+    
+    def step(self, action: np.ndarray):
+        s, r, done, info = self.env.step(action)
+
+        # As of now use safety gym info['cost'] to detect collisions
+        collision = info.get('cost', 1.0) > 0
+        info["collision"] = collision
+
+        arrive = info.get("goal_met", False)
+
+        reward = self.get_goal_reward() + collision * self.collision_penalty + arrive * self.arrive_reward
+
+        if self.end_on_collision and collision:
+            done = True
+        else:
+            done = arrive or done
+
+        obs = self.get_obs()
+        #if arrive:
+        #    # if the robot meets goal, the goal will be reset immediately
+        #    # this can cause the goal observation has large jumps and affect Lyapunov function
+        #    obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
+
+        self.traj.append(self.robot_pos)
+
+        return obs, reward, done, info
+    
+    def robot_goal_pos(self):
+        return np.zeros(shape=self.num_relevant_dim)
+
+    def robot_goal_obs(self) -> np.ndarray:
+        """
+            'accelerometer', 'velocimeter', 'gyro', 
+            'magnetometer', 'goal_lidar', 'hazards_lidar', 
+            'vases_lidar'
+
+            "accelerometer_z" should be 9.81, everything else is 0
+        """
+        # only gets observation dimensions relevant to robot from safety-gym
+        obs = self.env.obs()
+        flat_obs = np.zeros(self.robot_obs_size)
+        offset = 0
+
+        for k in sorted(self.env.obs_space_dict.keys()):
+            if "lidar" in k:
+                continue
+            k_size = np.prod(obs[k].shape)
+            if "accelerometer" in k:
+                copy_obs = copy.deepcopy(obs[k])
+                copy_obs[:2] = 0 # acc_x, acc_y = 0, 0
+                flat_obs[offset:offset + k_size] = copy_obs.flat
+            offset += k_size
+        return flat_obs
+    
+    def get_obs(self):
+        """
+            Point env state = (dx_goal, dy_goal, 
+                               a_x, a_y, a_z, v_x, v_y, v_z, 
+                               w_x, w_y, w_z, ?_x, ?_y, ?_z, 
+                               obst_1_dx, obst_1_dy)
+            where 
+                self.num_relevant_dim = 2 # dx_goal, dy_goal for goal
+                self.obstacle_in_obs = 2 # obst_1_dx, obst_1_dy for obsts
+        """
+        """
+        return np.concatenate([
+                               # state
+                               self.goal_obs(),
+                               self.robot_obs(), # absolute robot acc, velocities
+                               self.obstacle_obs(), # obsts with respect to obs
+                               # goal
+                               self.robot_goal_pos(),
+                               self.robot_goal_obs(), # absolute goal acc, velocities
+                               self.obstacle_goal_obs() # obsts with respect to goal
+                               ])
+        """        
+        state = np.concatenate([
+                               self.goal_obs(),
+                               self.robot_obs(), # absolute robot acc, velocities
+                               self.obstacle_obs(), # obsts with respect to obs
+                               ])
+        goal = np.concatenate([
+                               self.robot_goal_pos(),
+                               self.robot_goal_obs(), # absolute goal acc, velocities
+                               self.obstacle_goal_obs() # obsts with respect to goal
+                               ])
+        return {
+            "observation": state,
+            "desired_goal": goal,
+            "achieved_goal": state,
+        }
+    
+
+class CustomTimeLimit(GCSafetyGymBase):
+    def step(self, action):
+        assert self._elapsed_steps is not None, "Cannot call env.step() before calling reset()"
+        observation, reward, done, info = super().step(action)
+        self._elapsed_steps += 1
+        if self._elapsed_steps >= self.spec.max_episode_steps:
+            info['TimeLimit.truncated'] = not done
+            done = True
+        return observation, reward, done, info
+
+    def reset(self, **kwargs):
+        self._elapsed_steps = 0
+        return super().reset(**kwargs)
 
 class ObstacleMaskWrapper(gym.Wrapper):
     """
