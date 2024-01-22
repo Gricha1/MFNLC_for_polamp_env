@@ -8,6 +8,8 @@ import cv2
 #import safety_gym  # noqa
 from gym import Env, GoalEnv
 
+import matplotlib.pyplot as plt
+
 from mfnlc.config import env_config
 
 
@@ -276,12 +278,45 @@ class SafetyGymBase(EnvBase):
                                vertical=self.render_config["vertical"],
                                scale=self.render_config["scale"])
     
-    def custom_render(self, shape=(600, 600)):
-        # camera_name = ('fixednear', 'fixedfar', 'vision', 'track')
-        image = self.env.sim.render(shape[0], shape[1], camera_name="fixedfar", mode='offscreen')
-        rotated_image = cv2.rotate(image, cv2.ROTATE_180)
-        return rotated_image
-    
+    def custom_render(self, positions_render=False, shape=(600, 600)):
+        if positions_render:
+            env_min_x, env_max_x = -3, 3
+            env_min_y, env_max_y = -3, 3
+            fig = plt.figure(figsize=[6.4, 4.8])
+            ax_states = fig.add_subplot(111)
+            ax_states.set_ylim(bottom=env_min_y, top=env_max_y)
+            ax_states.set_xlim(left=env_min_x, right=env_max_x)
+            # robot pose
+            x = self.robot_pos[0]
+            y = self.robot_pos[1]
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="g", alpha=0.5)
+            ax_states.add_patch(circle_robot) 
+            # subgoal
+            x = self.subgoal_pos[0]
+            y = self.subgoal_pos[1]
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="orange", alpha=0.5)
+            ax_states.add_patch(circle_robot)
+            # goal
+            x = self.env.goal_pos[0]
+            y = self.env.goal_pos[1]
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="y", alpha=0.5)
+            ax_states.add_patch(circle_robot) 
+            # add obstacles
+            obstacles = [plt.Circle(obs[:2], radius=self.obstacle_radius,  # noqa
+                        color="b", alpha=0.5) for obs in self.env.hazards_pos]
+            for obs in obstacles:
+                ax_states.add_patch(obs)
+            fig.canvas.draw()
+            data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+            data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            ax_states.clear()
+            return data
+        else:
+            # camera_name = ('fixednear', 'fixedfar', 'vision', 'track')
+            image = self.env.sim.render(shape[0], shape[1], camera_name="fixedfar", mode='offscreen')
+            rotated_image = cv2.rotate(image, cv2.ROTATE_180)
+            return rotated_image
+        
 class GCSafetyGymBase(SafetyGymBase):    
 
     def __init__(self,
@@ -303,6 +338,7 @@ class GCSafetyGymBase(SafetyGymBase):
         self.collision_penalty = -100
         self.arrive_reward = 0
         self.time_step_reward = -1
+        self.subgoal_pos = None
 
     def _build_space(self):
         self.action_space = self.env.action_space
@@ -364,6 +400,15 @@ class GCSafetyGymBase(SafetyGymBase):
         output[:flattened_vec.shape[0]] = flattened_vec
         return output
     
+    def set_subgoal_pos(self, subgoal_related_pos):
+        self.subgoal_pos = []
+        self.subgoal_pos.append(self.env.goal_pos[0] - subgoal_related_pos[0][0][0].item())
+        self.subgoal_pos.append(self.env.goal_pos[1] - subgoal_related_pos[0][0][1].item())
+
+    def reset(self, **kwargs):
+        self.subgoal_pos = None
+        return super().reset(**kwargs)
+    
     def step(self, action: np.ndarray):
         s, r, done, info = self.env.step(action)
 
@@ -387,6 +432,8 @@ class GCSafetyGymBase(SafetyGymBase):
         #    obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
 
         self.traj.append(self.robot_pos)
+
+        #info["is_success"] = arrive
 
         return obs, reward, done, info
     
@@ -464,6 +511,7 @@ class CustomTimeLimit(GCSafetyGymBase):
         if self._elapsed_steps >= self.spec.max_episode_steps:
             info['TimeLimit.truncated'] = not done
             done = True
+        info["done"] = done
         return observation, reward, done, info
 
     def reset(self, **kwargs):
