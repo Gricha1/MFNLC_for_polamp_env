@@ -13,7 +13,8 @@ def learn():
           subgoal_policy_kwargs={"net_arch": [100, 100]},
           policy_kwargs={"net_arch": [100, 100]},
           train_freq=(200, "step"),
-          gradient_steps=100,
+          #train_freq=(1, "step"),
+          #gradient_steps=100,
           n_envs=1,
           batch_size=10000,
           log_interval=4)
