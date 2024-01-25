@@ -49,7 +49,7 @@ def get_env(env_name: str):
     elif env_name == "GCPoint":
         #env = TimeLimit(GCPointNav(), env_config[robot_name]["max_step"])
         env = GCPointNav(end_on_collision=True,
-                        no_obstacle=True,
+                         no_obstacle=False,
                          max_episode_steps=env_config[robot_name]["max_step"])
     else:
         raise NotImplementedError(f"Unsupported environment - {env_name}")

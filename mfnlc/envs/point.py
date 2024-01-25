@@ -12,7 +12,7 @@ class PointNav(SafetyGymBase):
 class GCPointNav(CustomTimeLimit):
     def __init__(self,
                  no_obstacle=False,
-                 end_on_collision=False,
+                 end_on_collision=True,
                  fixed_init_and_goal=False,
                  max_episode_steps=100) -> None:
         super().__init__('Safexp-PointGoal1-v0', no_obstacle,

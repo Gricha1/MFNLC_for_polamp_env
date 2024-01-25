@@ -123,12 +123,27 @@ class SafetyRis(SAC):
         self._setup_alias()
 
     def _setup_alias(self) -> None:
+        del self.actor
+        del self.critic
+        del self.critic_target
+        del self.policy.actor
+        del self.policy.critic
+        del self.policy.critic_target
         self.actor = self.new_actor
         self.actor_target = deepcopy(self.actor)
         self.critic = self.new_critic
         self.critic_target = deepcopy(self.critic)
         self.policy.actor = self.actor
         self.policy.critic = self.critic
+    
+    # RIS requires training each time when env.step()
+    def _on_step(self):
+        if self.num_timesteps > 0 and self.num_timesteps > self.learning_starts:
+            pass
+            #gradient_steps = self.gradient_steps
+            # Special case when the user passes `gradient_steps=0`
+            #if gradient_steps > 0:
+            #    self.train(batch_size=self.batch_size, gradient_steps=gradient_steps)
         
     def train_highlevel_policy(self, state, goal, subgoal, subgoal_net_losses=[], advs=[]):
 		# Compute subgoal distribution 
@@ -157,11 +172,10 @@ class SafetyRis(SAC):
         self.subgoal_optimizer.zero_grad()
         subgoal_loss.backward()
         self.subgoal_optimizer.step()
-        if False:
-            with th.no_grad():
-                subgoal_grad_norm = (
-                sum(p.grad.data.norm(2).item() ** 2 for p in self.subgoal_net.parameters() if p.grad is not None) ** 0.5
-                )
+        #with th.no_grad():
+        #    subgoal_grad_norm = (
+        #    sum(p.grad.data.norm(2).item() ** 2 for p in self.subgoal_net.parameters() if p.grad is not None) ** 0.5
+        #    )
 		
         """
 		# Log variables
@@ -212,15 +226,7 @@ class SafetyRis(SAC):
     def train(self, gradient_steps: int, batch_size: int = 64) -> None:
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
-        # Update optimizers learning rate
-        #optimizers = [self.actor.optimizer, self.critic.optimizer]
-        #if self.ent_coef_optimizer is not None:
-        #    optimizers += [self.ent_coef_optimizer]
 
-        # Update learning rate according to lr schedule
-        #self._update_learning_rate(optimizers)
-
-        ent_coef_losses, ent_coefs = [], []
         actor_losses, critic_losses, subgoal_net_losses, advs = [], [], [], []
 
         for gradient_step in range(gradient_steps):
@@ -228,35 +234,6 @@ class SafetyRis(SAC):
             replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
             # sample more states for subgoals
             subgoals_replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
-
-            # We need to sample because `log_std` may have changed between two gradient steps
-            if self.use_sde:
-                self.actor.reset_noise()
-
-            # Action by the current actor for the sampled state
-            #actions_pi, log_prob = self.actor.action_log_prob(replay_data.observations)
-            #log_prob = log_prob.reshape(-1, 1)
-            
-            #ent_coef_loss = None
-            #if self.ent_coef_optimizer is not None:
-                # Important: detach the variable from the graph
-                # so we don't change it with other losses
-                # see https://github.com/rail-berkeley/softlearning/issues/60
-            #    ent_coef = th.exp(self.log_ent_coef.detach())
-            #    ent_coef_loss = -(self.log_ent_coef * (self.target_entropy).detach()).mean()
-            #    ent_coef_losses.append(ent_coef_loss.item())
-            #else:
-            #    ent_coef = self.ent_coef_tensor
-
-            #ent_coefs.append(ent_coef.item())
-
-            # Optimize entropy coefficient, also called
-            # entropy temperature or alpha in the paper
-            #if ent_coef_loss is not None:
-            #    self.ent_coef_optimizer.zero_grad()
-            #    ent_coef_loss.backward()
-            #    self.ent_coef_optimizer.step()
-                
 
             state = replay_data.observations["observation"]
             goal = replay_data.observations["desired_goal"]
@@ -286,20 +263,6 @@ class SafetyRis(SAC):
             #    th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.max_grad_norm)
             self.critic_optimizer.step()
                 
-            # Get current Q-values estimates for each critic network
-            # using action from the replay buffer
-            #print("obs shape:", type(replay_data.observations))
-            #current_q_values = self.critic(replay_data.observations, replay_data.actions)
-
-            # Compute critic loss
-            #critic_loss = 0.5 * sum(F.mse_loss(current_q, target_q_values) for current_q in current_q_values)
-            #critic_losses.append(critic_loss.item())
-
-            # Optimize the critic
-            #self.critic.optimizer.zero_grad()
-            #critic_loss.backward()
-            #self.critic.optimizer.step()
-
             # Optimize the subgoal policy
             self.train_highlevel_policy(state, goal, subgoal, subgoal_net_losses, advs) # test
             
@@ -317,24 +280,6 @@ class SafetyRis(SAC):
             #    th.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.actor_max_grad_norm)
             self.actor_optimizer.step()
 
-            """
-            # Optimize the actor
-            self.actor.optimizer.zero_grad()
-            actor_loss.backward()
-            self.actor.optimizer.step()
-            """
-
-            # Compute actor loss
-            # Alternative: actor_loss = th.mean(log_prob - qf1_pi)
-            # Mean over all critic networks
-            """
-            action, D_KL = self.sample_action_and_KL(replay_data.observations) # test
-            q_values_pi = th.cat(self.critic(replay_data.observations, action), dim=1)
-            min_qf_pi, _ = th.min(q_values_pi, dim=1, keepdim=True)
-            actor_loss = (self.alpha*D_KL - min_qf_pi).mean() # test
-            actor_losses.append(actor_loss.item())
-            """
-
             # Update target networks
             if gradient_step % self.target_update_interval == 0:
                 polyak_update(self.critic.parameters(), self.critic_target.parameters(), self.tau)
@@ -342,7 +287,6 @@ class SafetyRis(SAC):
         self._n_updates += gradient_steps
 
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
-        self.logger.record("train/ent_coef", np.mean(ent_coefs))
         self.logger.record("train/actor_loss", np.mean(actor_losses))
         self.logger.record("train/critic_loss", np.mean(critic_losses))
         self.logger.record("train/subgoal_net_loss", np.mean(subgoal_net_losses))

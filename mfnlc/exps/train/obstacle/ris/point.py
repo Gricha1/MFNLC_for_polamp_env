@@ -9,10 +9,20 @@ def learn():
     action_noise = OrnsteinUhlenbeckActionNoise(np.array([0, 0]), np.array([0.1, 0.1]))
     train(env_name="GCPoint",
           total_timesteps=1600_000,
+          learning_starts=10_000,
           action_noise=action_noise,
           subgoal_policy_kwargs={"net_arch": [100, 100]},
           policy_kwargs={"net_arch": [100, 100]},
-          train_freq=(200, "step"),
+          train_freq=(1, "episode"), #train_freq=(200, "step"),
+          gradient_steps=1,
+          h_lr = 1e-3, # RIS
+          q_lr = 1e-3, # RIS
+          pi_lr = 1e-4, # RIS
+          epsilon = 1e-16, # RIS
+          alpha = 0.1, # RIS
+          Lambda = 0.1, # RIS
+          n_ensemble = 10, # RIS
+          clip_v_function = -150, # RIS,
           #train_freq=(1, "step"),
           #gradient_steps=100,
           n_envs=1,

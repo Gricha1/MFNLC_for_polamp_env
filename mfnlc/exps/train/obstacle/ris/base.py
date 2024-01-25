@@ -86,14 +86,6 @@ def train(env_name,
     # add custom video callback
     class VideoRecorderCallback(BaseCallback):
         def __init__(self, eval_env: gym.Env, render_freq: int, n_eval_episodes: int = 1, deterministic: bool = True):
-            """
-            Records a video of an agent's trajectory traversing ``eval_env`` and logs it to TensorBoard
-
-            :param eval_env: A gym environment from which the trajectory is recorded
-            :param render_freq: Render the agent's trajectory every eval_freq call of the callback.
-            :param n_eval_episodes: Number of episodes to render
-            :param deterministic: Whether to use deterministic or stochastic policy
-            """
             super().__init__()
             self._eval_env = eval_env
             self._render_freq = render_freq
@@ -108,12 +100,6 @@ def train(env_name,
                 self._is_success_buffer = []
 
                 def grab_screens(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-                    """
-                    Renders the environment in its current state, recording the screen in the captured `screens` list
-
-                    :param _locals: A dictionary containing all local variables of the callback's scope
-                    :param _globals: A dictionary containing all global variables of the callback's scope
-                    """
                     # predict subgoal and set to env
                     assert len(_locals["env"].envs) == 1
                     with th.no_grad():
@@ -126,8 +112,8 @@ def train(env_name,
                     _locals["env"].envs[0].set_subgoal_pos(subgoal)
                     # get video
                     if _locals["episode_counts"][_locals["i"]] == 0:
-                        screen = self._eval_env.custom_render(positions_render=False)
-                        robot_screens.append(screen.transpose(2, 0, 1))
+                        #screen = self._eval_env.custom_render(positions_render=False)
+                        #robot_screens.append(screen.transpose(2, 0, 1))
                         screen = self._eval_env.custom_render(positions_render=True)
                         positions_screens.append(screen.transpose(2, 0, 1))
                     # get success rate
@@ -145,18 +131,18 @@ def train(env_name,
                     n_eval_episodes=self._n_eval_episodes,
                     deterministic=self._deterministic,
                 )
-                self.logger.record(
-                    "trajectory/video",
-                    Video(th.ByteTensor([robot_screens]), fps=40),
-                    exclude=("stdout", "log", "json", "csv"),
-                )
+                #self.logger.record(
+                #    "trajectory/video",
+                #    Video(th.ByteTensor([robot_screens]), fps=40),
+                #    exclude=("stdout", "log", "json", "csv"),
+                #)
                 self.logger.record(
                     "trajectory/pos_video",
                     Video(th.ByteTensor([positions_screens]), fps=40),
                     exclude=("stdout", "log", "json", "csv"),
                 )
                 del robot_screens
-                del positions_screens
+                #del positions_screens
 
                 mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
                 mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
@@ -176,16 +162,17 @@ def train(env_name,
     else:
         assert 1 == 0
 
-    # test
+    # test eval env
     obs = callback_eval_env.reset()
     print("obs type:", type(obs))
     print("obs:", callback_eval_env.observation_space)
     print("image shape:", callback_eval_env.custom_render().shape)
+
     env_obs_dim = env.observation_space["observation"].shape[0]
     env_goal_dim = env.observation_space["desired_goal"].shape[0]
     action_dim = env.action_space.shape[0]
     assert env_obs_dim == env_goal_dim
-    video_recorder = VideoRecorderCallback(callback_eval_env, n_eval_episodes=10, render_freq=5_000)
+    video_recorder = VideoRecorderCallback(callback_eval_env, n_eval_episodes=10, render_freq=500)
 
     state_dim = env_obs_dim
     goal_dim = env_goal_dim
