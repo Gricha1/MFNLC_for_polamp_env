@@ -141,8 +141,8 @@ def train(env_name,
                     Video(th.ByteTensor([positions_screens]), fps=40),
                     exclude=("stdout", "log", "json", "csv"),
                 )
-                del robot_screens
-                #del positions_screens
+                #del robot_screens
+                del positions_screens
 
                 mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
                 mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
@@ -172,7 +172,7 @@ def train(env_name,
     env_goal_dim = env.observation_space["desired_goal"].shape[0]
     action_dim = env.action_space.shape[0]
     assert env_obs_dim == env_goal_dim
-    video_recorder = VideoRecorderCallback(callback_eval_env, n_eval_episodes=10, render_freq=500)
+    video_recorder = VideoRecorderCallback(callback_eval_env, n_eval_episodes=10, render_freq=15_000)
 
     state_dim = env_obs_dim
     goal_dim = env_goal_dim
@@ -207,23 +207,6 @@ def train(env_name,
         alpha, Lambda, n_ensemble, clip_v_function,
         tensorboard_log, create_eval_env, policy_kwargs, verbose, seed, default_device)
 
-    """
-    model = TD3(
-        "MultiInputPolicy", 
-        #"MlpPolicy", 
-        env, learning_rate, buffer_size, learning_starts, batch_size, tau, gamma,
-        train_freq, gradient_steps, action_noise, 
-        HerReplayBuffer, #replay_buffer_class
-        dict(
-            n_sampled_goal=4,
-            goal_selection_strategy=goal_selection_strategy,
-        ), # replay_buffer_kwargs
-        #replay_buffer_class,
-        #replay_buffer_kwargs,
-        optimize_memory_usage, policy_delay, target_policy_noise, target_noise_clip,
-        tensorboard_log, create_eval_env, policy_kwargs, verbose, seed, default_device)
-    """
-        
     model.learn(total_timesteps, video_recorder, log_interval, eval_env, eval_freq,
                 n_eval_episodes, tb_log_name, eval_log_path, reset_num_timesteps)
 

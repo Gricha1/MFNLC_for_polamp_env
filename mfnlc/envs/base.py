@@ -292,6 +292,7 @@ class SafetyGymBase(EnvBase):
             y = self.robot_pos[1]
             circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="g", alpha=0.5)
             self.render_info["ax_states"].add_patch(circle_robot) 
+            self.render_info["ax_states"].scatter(x, y, color="red")
             # subgoal
             x = self.subgoal_pos[0]
             y = self.subgoal_pos[1]

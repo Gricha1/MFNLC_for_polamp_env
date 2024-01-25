@@ -139,11 +139,10 @@ class SafetyRis(SAC):
     # RIS requires training each time when env.step()
     def _on_step(self):
         if self.num_timesteps > 0 and self.num_timesteps > self.learning_starts:
-            pass
-            #gradient_steps = self.gradient_steps
+            gradient_steps = self.gradient_steps
             # Special case when the user passes `gradient_steps=0`
-            #if gradient_steps > 0:
-            #    self.train(batch_size=self.batch_size, gradient_steps=gradient_steps)
+            if gradient_steps > 0:
+                self.train(batch_size=self.batch_size, gradient_steps=gradient_steps)
         
     def train_highlevel_policy(self, state, goal, subgoal, subgoal_net_losses=[], advs=[]):
 		# Compute subgoal distribution 
