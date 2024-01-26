@@ -277,47 +277,6 @@ class SafetyGymBase(EnvBase):
                                follow=self.render_config["follow"],
                                vertical=self.render_config["vertical"],
                                scale=self.render_config["scale"])
-    
-    def custom_render(self, positions_render=False, shape=(600, 600)):
-        if positions_render:
-            env_min_x, env_max_x = -3, 3
-            env_min_y, env_max_y = -3, 3
-            if self.render_info["fig"] is None:
-                self.render_info["fig"] = plt.figure(figsize=[6.4, 4.8])
-                self.render_info["ax_states"] = self.render_info["fig"].add_subplot(111)
-            self.render_info["ax_states"].set_ylim(bottom=env_min_y, top=env_max_y)
-            self.render_info["ax_states"].set_xlim(left=env_min_x, right=env_max_x)
-            # robot pose
-            x = self.robot_pos[0]
-            y = self.robot_pos[1]
-            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="g", alpha=0.5)
-            self.render_info["ax_states"].add_patch(circle_robot) 
-            self.render_info["ax_states"].scatter(x, y, color="red")
-            # subgoal
-            x = self.subgoal_pos[0]
-            y = self.subgoal_pos[1]
-            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="orange", alpha=0.5)
-            self.render_info["ax_states"].add_patch(circle_robot)
-            # goal
-            x = self.env.goal_pos[0]
-            y = self.env.goal_pos[1]
-            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="y", alpha=0.5)
-            self.render_info["ax_states"].add_patch(circle_robot) 
-            # add obstacles
-            obstacles = [plt.Circle(obs[:2], radius=self.obstacle_radius,  # noqa
-                        color="b", alpha=0.5) for obs in self.env.hazards_pos]
-            for obs in obstacles:
-                self.render_info["ax_states"].add_patch(obs)
-            self.render_info["fig"].canvas.draw()
-            data = np.frombuffer(self.render_info["fig"].canvas.tostring_rgb(), dtype=np.uint8)
-            data = data.reshape(self.render_info["fig"].canvas.get_width_height()[::-1] + (3,))
-            self.render_info["ax_states"].clear()
-            return data
-        else:
-            # camera_name = ('fixednear', 'fixedfar', 'vision', 'track')
-            image = self.env.sim.render(shape[0], shape[1], camera_name="fixedfar", mode='offscreen')
-            rotated_image = cv2.rotate(image, cv2.ROTATE_180)
-            return rotated_image
         
 class GCSafetyGymBase(SafetyGymBase):    
 
@@ -423,7 +382,7 @@ class GCSafetyGymBase(SafetyGymBase):
 
         arrive = info.get("goal_met", False)
 
-        reward = self.get_goal_reward() + collision * self.collision_penalty + arrive * self.arrive_reward
+        reward = self.time_step_reward + self.collision_penalty * collision
 
         if self.end_on_collision and collision:
             done = True
@@ -506,6 +465,64 @@ class GCSafetyGymBase(SafetyGymBase):
             "desired_goal": goal,
             "achieved_goal": state,
         }
+    
+    def custom_render(self, positions_render=False, dubug_info={}, shape=(600, 600)):
+        if positions_render:
+            env_min_x, env_max_x = -3, 3
+            env_min_y, env_max_y = -3, 3
+            if self.render_info["fig"] is None:
+                self.render_info["fig"] = plt.figure(figsize=[6.4, 4.8])
+                self.render_info["ax_states"] = self.render_info["fig"].add_subplot(111)
+            self.render_info["ax_states"].set_ylim(bottom=env_min_y, top=env_max_y)
+            self.render_info["ax_states"].set_xlim(left=env_min_x, right=env_max_x)
+            # robot pose
+            x = self.robot_pos[0]
+            y = self.robot_pos[1]
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="g", alpha=0.5)
+            self.render_info["ax_states"].add_patch(circle_robot) 
+            self.render_info["ax_states"].scatter(x, y, color="red")
+            self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s")
+            # subgoal
+            x = self.subgoal_pos[0]
+            y = self.subgoal_pos[1]
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="orange", alpha=0.5)
+            self.render_info["ax_states"].add_patch(circle_robot)
+            self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s_g")
+            # goal
+            x = self.env.goal_pos[0]
+            y = self.env.goal_pos[1]
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="y", alpha=0.5)
+            self.render_info["ax_states"].add_patch(circle_robot) 
+            self.render_info["ax_states"].text(x + 0.05, y + 0.05, "g")
+            # add obstacles
+            obstacles = [plt.Circle(obs[:2], radius=self.obstacle_radius,  # noqa
+                        color="b", alpha=0.5) for obs in self.env.hazards_pos]
+            for obs in obstacles:
+                self.render_info["ax_states"].add_patch(obs)
+            # debug info
+            if len(dubug_info) != 0:
+                a0 = dubug_info["a0"]
+                a1 = dubug_info["a1"]
+                acc_reward = dubug_info["acc_reward"]
+                t = dubug_info["t"]
+                acc_cost = dubug_info["acc_cost"]
+                self.render_info["ax_states"].text(env_max_x - 4.5, env_max_y - 0.3, f"a0:{int(a0*100)/100}")
+                self.render_info["ax_states"].text(env_max_x - 3.5, env_max_y - 0.3, f"a1:{int(a0*100)/100}")
+                self.render_info["ax_states"].text(env_max_x - 2.5, env_max_y - 0.3, f"R:{int(acc_reward*10)/10}")
+                self.render_info["ax_states"].text(env_max_x - 1.5, env_max_y - 0.3, f"C:{int(acc_cost*10)/10}")
+                self.render_info["ax_states"].text(env_max_x - 0.5, env_max_y - 0.3, f"t:{t}")
+
+            # render img
+            self.render_info["fig"].canvas.draw()
+            data = np.frombuffer(self.render_info["fig"].canvas.tostring_rgb(), dtype=np.uint8)
+            data = data.reshape(self.render_info["fig"].canvas.get_width_height()[::-1] + (3,))
+            self.render_info["ax_states"].clear()
+            return data
+        else:
+            # camera_name = ('fixednear', 'fixedfar', 'vision', 'track')
+            image = self.env.sim.render(shape[0], shape[1], camera_name="fixedfar", mode='offscreen')
+            rotated_image = cv2.rotate(image, cv2.ROTATE_180)
+            return rotated_image
     
 
 class CustomTimeLimit(GCSafetyGymBase):

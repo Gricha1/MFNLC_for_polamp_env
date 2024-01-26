@@ -1,3 +1,5 @@
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Type, Union
+
 import torch
 from torch import nn
 import numpy as np
@@ -91,3 +93,55 @@ class LaplacePolicy(nn.Module):
 		scale = self.log_scale(h).clamp(min=self.LOG_SCALE_MIN, max=self.LOG_SCALE_MAX).exp()	
 		distribution = torch.distributions.laplace.Laplace(mean, scale)
 		return distribution
+
+""" Actor-Critic """
+class CustomActorCriticPolicy:
+	"""
+		this class is used by stable-baseline API.
+		stable - baseline OffPolicyAlgorithm class uses .predict() 
+			function in .policy attribute, so this class is .policy attribute
+	"""
+	def __init__(self, device):
+		self.device = device
+	def select_action(self, state, goal, deterministic):
+		with torch.no_grad():
+			state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
+			goal = torch.FloatTensor(goal).to(self.device).unsqueeze(0)
+			action, _, mean = self.actor.sample(state, goal)
+			if deterministic:
+				action = mean
+		return action.cpu().data.numpy().flatten()
+	
+	def predict(
+        self,
+        observation: Union[np.ndarray, Dict[str, np.ndarray]],
+        state: Optional[Tuple[np.ndarray, ...]] = None,
+        episode_start: Optional[np.ndarray] = None,
+        deterministic: bool = False,
+    ) -> Tuple[np.ndarray, Optional[Tuple[np.ndarray, ...]]]:
+		self.set_training_mode(False)
+
+		#observation, vectorized_env = self.obs_to_tensor(observation)
+		state = observation["observation"]
+		goal = observation["desired_goal"]
+		vectorized_env = True
+
+		with torch.no_grad():
+			actions = self.select_action(state, goal, deterministic=deterministic)
+
+		# Remove batch dimension if needed
+		#if not vectorized_env:
+		#	actions = actions[0]
+
+		return actions, state
+	
+	def set_training_mode(self, train):
+		return
+	
+	def scale_action(self, action: np.ndarray) -> np.ndarray:
+		assert (-1 <= action).all() and (action <= 1).all()
+		return action
+
+	def unscale_action(self, scaled_action: np.ndarray) -> np.ndarray:
+		assert (-1 <= scaled_action).all() and (scaled_action <= 1).all()
+		return scaled_action

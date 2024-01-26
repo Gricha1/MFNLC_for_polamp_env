@@ -98,10 +98,16 @@ def train(env_name,
                 robot_screens = []
                 positions_screens = []
                 self._is_success_buffer = []
+                dubug_info = {"acc_reward" : 0, "t": 0, "acc_cost" : 0}
 
                 def grab_screens(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
                     # predict subgoal and set to env
                     assert len(_locals["env"].envs) == 1
+                    dubug_info["a0"] = _locals["actions"][0]
+                    dubug_info["a1"] = _locals["actions"][1]
+                    dubug_info["acc_reward"] += _locals["reward"]
+                    dubug_info["acc_cost"] += _locals["info"]["cost"]
+                    dubug_info["t"] += 1
                     with th.no_grad():
                         state = _locals["observations"]["observation"]
                         goal = _locals["observations"]["desired_goal"]
@@ -112,9 +118,9 @@ def train(env_name,
                     _locals["env"].envs[0].set_subgoal_pos(subgoal)
                     # get video
                     if _locals["episode_counts"][_locals["i"]] == 0:
-                        #screen = self._eval_env.custom_render(positions_render=False)
-                        #robot_screens.append(screen.transpose(2, 0, 1))
-                        screen = self._eval_env.custom_render(positions_render=True)
+                        screen = self._eval_env.custom_render(positions_render=False)
+                        robot_screens.append(screen.transpose(2, 0, 1))
+                        screen = self._eval_env.custom_render(positions_render=True, dubug_info=dubug_info)
                         positions_screens.append(screen.transpose(2, 0, 1))
                     # get success rate
                     info = _locals["info"]
@@ -131,11 +137,11 @@ def train(env_name,
                     n_eval_episodes=self._n_eval_episodes,
                     deterministic=self._deterministic,
                 )
-                #self.logger.record(
-                #    "trajectory/video",
-                #    Video(th.ByteTensor([robot_screens]), fps=40),
-                #    exclude=("stdout", "log", "json", "csv"),
-                #)
+                self.logger.record(
+                    "trajectory/video",
+                    Video(th.ByteTensor([robot_screens]), fps=40),
+                    exclude=("stdout", "log", "json", "csv"),
+                )
                 self.logger.record(
                     "trajectory/pos_video",
                     Video(th.ByteTensor([positions_screens]), fps=40),
@@ -145,10 +151,13 @@ def train(env_name,
                 del positions_screens
 
                 mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
+                min_reward, max_reward = np.min(episode_rewards), np.max(episode_rewards)
                 mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
                 # Add to current Logger
                 self.logger.record("eval/reward", float(mean_reward))
                 self.logger.record("eval/ep_length", mean_ep_length)
+                self.logger.record("eval/reward_min", min_reward)
+                self.logger.record("eval/reward_max", max_reward)
                 if len(self._is_success_buffer) > 0:
                     success_rate = np.mean(self._is_success_buffer)
                     self.logger.record("eval/success_rate", success_rate)
@@ -172,7 +181,7 @@ def train(env_name,
     env_goal_dim = env.observation_space["desired_goal"].shape[0]
     action_dim = env.action_space.shape[0]
     assert env_obs_dim == env_goal_dim
-    video_recorder = VideoRecorderCallback(callback_eval_env, n_eval_episodes=10, render_freq=15_000)
+    video_recorder = VideoRecorderCallback(callback_eval_env, n_eval_episodes=10, render_freq=10_000)
 
     state_dim = env_obs_dim
     goal_dim = env_goal_dim

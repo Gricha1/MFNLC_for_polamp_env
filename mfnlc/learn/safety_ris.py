@@ -18,7 +18,7 @@ from torch.nn import functional as F
 
 from mfnlc.config import default_device
 from mfnlc.learn.utils import list_dict_to_dict_list
-from mfnlc.learn.subgoal import LaplacePolicy, GaussianPolicy, EnsembleCritic
+from mfnlc.learn.subgoal import LaplacePolicy, GaussianPolicy, EnsembleCritic, CustomActorCriticPolicy
 
 
 class SafetyRis(SAC):
@@ -129,12 +129,15 @@ class SafetyRis(SAC):
         del self.policy.actor
         del self.policy.critic
         del self.policy.critic_target
+        del self.policy
+        self.policy = CustomActorCriticPolicy(self.device)
         self.actor = self.new_actor
         self.actor_target = deepcopy(self.actor)
         self.critic = self.new_critic
         self.critic_target = deepcopy(self.critic)
         self.policy.actor = self.actor
         self.policy.critic = self.critic
+        self.policy.critic_target = self.critic_target
     
     # RIS requires training each time when env.step()
     def _on_step(self):
