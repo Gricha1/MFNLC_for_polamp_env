@@ -35,6 +35,7 @@ class SafetyRis(SAC):
         q_lr: float = 1e-3,
         pi_lr: float = 1e-4, 
         epsilon: float = 1e-16,
+        max_grad_norm: float = None,
         learning_rate: Union[float, Schedule] = 3e-4,
         buffer_size: int = 1_000_000,  # 1e6
         learning_starts: int = 100,
@@ -108,6 +109,7 @@ class SafetyRis(SAC):
         self.n_ensemble = n_ensemble
         self.clip_v_function = clip_v_function
         self.epsilon = epsilon
+        self.max_grad_norm = max_grad_norm
         # actor
         self.new_actor = actor
         self.actor_optimizer = th.optim.Adam(self.new_actor.parameters(), lr=pi_lr)
@@ -261,8 +263,9 @@ class SafetyRis(SAC):
             # Optimize the critic
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
-            #if self.max_grad_norm > 0:
-            #    th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.max_grad_norm)
+            if not(self.max_grad_norm is None):
+                if self.max_grad_norm > 0:
+                    th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.max_grad_norm)
             self.critic_optimizer.step()
                 
             # Optimize the subgoal policy
@@ -292,7 +295,8 @@ class SafetyRis(SAC):
         self.logger.record("train/actor_loss", np.mean(actor_losses))
         self.logger.record("train/critic_loss", np.mean(critic_losses))
         self.logger.record("train/subgoal_net_loss", np.mean(subgoal_net_losses))
-        self.logger.record("train/adv", np.mean(advs))
+        self.logger.record("train/adv", np.mean(advs))        
+        self.logger.record("train/D_KL", D_KL.mean().item())
 
     def _excluded_save_params(self) -> List[str]:
         return super(SafetyRis, self)._excluded_save_params() + ["actor", "critic", "critic_target"]

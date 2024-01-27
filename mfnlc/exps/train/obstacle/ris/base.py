@@ -12,6 +12,8 @@ from stable_baselines3.td3.policies import TD3Policy
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.logger import Video
+import wandb
+from wandb.integration.sb3 import WandbCallback
 
 from mfnlc.config import get_path, default_device
 from mfnlc.envs import get_env, get_sub_proc_env
@@ -56,6 +58,7 @@ def train(env_name,
           Lambda = 0.1, # RIS
           n_ensemble = 10, # RIS
           clip_v_function = -150, # RIS,
+          max_grad_norm: float = None, # RIS
           create_eval_env: bool = False,
           policy_kwargs: Optional[Dict[str, Any]] = None,
           verbose: int = 1,
@@ -71,6 +74,10 @@ def train(env_name,
           n_envs: int = 1,
           ):
     algo = "ris"
+    run = wandb.init(
+        project="train_safety_ris_safety_gym",
+        sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+    )
 
     if n_envs == 1:
         env = get_env(env_name)
@@ -84,9 +91,19 @@ def train(env_name,
     tensorboard_log = get_path(robot_name, algo, "log")
 
     # add custom video callback
-    class VideoRecorderCallback(BaseCallback):
-        def __init__(self, eval_env: gym.Env, render_freq: int, n_eval_episodes: int = 1, deterministic: bool = True):
-            super().__init__()
+    class VideoRecorderCallback(WandbCallback):
+        def __init__(self, 
+                    eval_env: gym.Env, 
+                    render_freq: int, 
+                    n_eval_episodes: int = 1, 
+                    deterministic: bool = True,
+                    verbose: int = 0,
+                    model_save_path: Optional[str] = None,
+                    model_save_freq: int = 0,
+                    gradient_save_freq: int = 0):
+            super().__init__(gradient_save_freq=gradient_save_freq, # error if > 0 
+                             model_save_path=model_save_path,
+                             verbose=verbose)
             self._eval_env = eval_env
             self._render_freq = render_freq
             self._n_eval_episodes = n_eval_episodes
@@ -116,6 +133,11 @@ def train(env_name,
                         subgoal_distribution = self.model.subgoal_net(to_torch_state, to_torch_goal)
                         subgoal = subgoal_distribution.loc
                     _locals["env"].envs[0].set_subgoal_pos(subgoal)
+                    # dubug subgoal
+                    if _locals["episode_counts"][_locals["i"]] == 0 and dubug_info["t"] == 1:
+                        print("state:", state)
+                        print("subgoal:", subgoal[0])
+                        print("goal:", goal)
                     # get video
                     if _locals["episode_counts"][_locals["i"]] == 0:
                         screen = self._eval_env.custom_render(positions_render=False)
@@ -147,7 +169,7 @@ def train(env_name,
                     Video(th.ByteTensor([positions_screens]), fps=40),
                     exclude=("stdout", "log", "json", "csv"),
                 )
-                #del robot_screens
+                del robot_screens
                 del positions_screens
 
                 mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
@@ -164,7 +186,10 @@ def train(env_name,
                 else:
                     success_rate = np.mean(self._is_success_buffer)
                     self.logger.record("eval/success_rate", 0)
-            return True
+            
+                return True
+            else:
+                return super()._on_step()
         
     if n_envs == 1:
         callback_eval_env = get_env(env_name)
@@ -181,7 +206,12 @@ def train(env_name,
     env_goal_dim = env.observation_space["desired_goal"].shape[0]
     action_dim = env.action_space.shape[0]
     assert env_obs_dim == env_goal_dim
-    video_recorder = VideoRecorderCallback(callback_eval_env, n_eval_episodes=10, render_freq=10_000)
+    video_recorder = VideoRecorderCallback(callback_eval_env, 
+                                           n_eval_episodes=10, 
+                                           render_freq=15_000,
+                                           gradient_save_freq=0, # error if > 0 
+                                           model_save_path=f"models/{run.id}",
+                                           verbose=2)
 
     state_dim = env_obs_dim
     goal_dim = env_goal_dim
@@ -204,6 +234,7 @@ def train(env_name,
         q_lr,
         pi_lr,
         epsilon,
+        max_grad_norm,
         learning_rate, buffer_size, learning_starts, batch_size, tau, gamma,
         train_freq, gradient_steps, action_noise, 
         HerReplayBuffer, #replay_buffer_class

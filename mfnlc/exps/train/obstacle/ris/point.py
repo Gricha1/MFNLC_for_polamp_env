@@ -6,7 +6,6 @@ from mfnlc.exps.train.obstacle.ris.base import train
 
 
 def learn():
-    action_noise = OrnsteinUhlenbeckActionNoise(np.array([0, 0]), np.array([0.1, 0.1]))
     train(env_name="GCPoint",
           total_timesteps=1600_000,
           learning_starts=10_000,
@@ -23,6 +22,7 @@ def learn():
           Lambda=0.1, # RIS
           n_ensemble=10, # RIS
           clip_v_function=-150, # RIS,
+          max_grad_norm=6.0, # RIS
           n_envs=1,
           batch_size=2048,
           log_interval=4)
