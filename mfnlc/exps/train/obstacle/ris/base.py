@@ -68,13 +68,15 @@ def train(env_name,
           eval_log_path: Optional[str] = None,
           reset_num_timesteps: bool = True,
           n_envs: int = 1,
-          validate_freq: int = 5000
+          validate_freq: int = 5000,
+          use_wandb = True
           ):
     algo = "ris"
-    run = wandb.init(
-        project="train_safety_ris_safety_gym",
-        sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-    )
+    if use_wandb:
+        run = wandb.init(
+            project="train_safety_ris_safety_gym",
+            sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+        )
 
     if n_envs == 1:
         env = get_env(env_name)
@@ -185,10 +187,10 @@ def train(env_name,
                 self.logger.record("eval/collision_rate", collision_rate)
                 if len(self._is_success_buffer) > 0:
                     success_rate = np.mean(self._is_success_buffer)
-                    self.logger.record("eval/success_rate", success_rate)
+                    self.logger.record("eval/custom_success_rate", success_rate)
                 else:
                     success_rate = np.mean(self._is_success_buffer)
-                    self.logger.record("eval/success_rate", 0)
+                    self.logger.record("eval/custom_success_rate", 0)
             
                 return True
             else:
@@ -209,13 +211,18 @@ def train(env_name,
     env_goal_dim = env.observation_space["desired_goal"].shape[0]
     action_dim = env.action_space.shape[0]
     assert env_obs_dim == env_goal_dim
-    video_recorder = VideoRecorderCallback(callback_eval_env, 
-                                           n_eval_episodes=10, 
-                                           render_freq=validate_freq,
-                                           gradient_save_freq=0, # error if > 0 
-                                           model_save_path=f"models/{run.id}",
-                                           verbose=2)
+    run_id = 0
+    video_recorder = None
+    if use_wandb:
+        run_id = run.id
+        video_recorder = VideoRecorderCallback(callback_eval_env, 
+                                            n_eval_episodes=10, 
+                                            render_freq=validate_freq,
+                                            gradient_save_freq=0, # error if > 0 
+                                            model_save_path=f"models/{run_id}",
+                                            verbose=2)
 
+    print("Ending")
     state_dim = env_obs_dim
     goal_dim = env_goal_dim
     actor = GaussianPolicy(state_dim, action_dim, 
@@ -249,6 +256,7 @@ def train(env_name,
         dict(
             n_sampled_goal=4,
             goal_selection_strategy=goal_selection_strategy,
+            online_sampling=False,
         ), # replay_buffer_kwargs
         optimize_memory_usage, ent_coef, target_update_interval, target_entropy, 
         use_sde, sde_sample_freq, use_sde_at_warmup, 
