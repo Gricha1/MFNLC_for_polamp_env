@@ -147,9 +147,8 @@ def train(env_name,
                         screen = self._eval_env.custom_render(positions_render=True, dubug_info=dubug_info)
                         positions_screens.append(screen.transpose(2, 0, 1))
                     # get success rate
-                    info = _locals["info"]
                     if _locals["done"]:
-                        maybe_is_success = info.get("is_success")
+                        maybe_is_success = _locals["info"].get("goal_is_arrived")
                         if maybe_is_success is not None:
                             self._is_success_buffer.append(maybe_is_success)
 

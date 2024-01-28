@@ -27,7 +27,7 @@ def learn():
           n_envs=1,
           batch_size=2048,
           log_interval=4,
-          validate_freq=5000)
+          validate_freq=10_000)
 
 
 def evaluate_controller():

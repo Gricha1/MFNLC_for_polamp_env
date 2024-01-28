@@ -343,7 +343,7 @@ class GCSafetyGymBase(SafetyGymBase):
                 assert reward == env.compute_reward(ob['achieved_goal'], ob['goal'], info)
         """
         #reward = self.get_goal_reward() + collision * self.collision_penalty + arrive * self.arrive_reward
-        # input batch_shape x state_shape
+        # input: batch_shape x state_shape
         collisions = np.array([float(el["collision"]) for el in info])
         return self.time_step_reward * np.ones_like(achieved_goal[:, 0]) + self.collision_penalty * collisions
             
@@ -397,7 +397,7 @@ class GCSafetyGymBase(SafetyGymBase):
 
         self.traj.append(self.robot_pos)
 
-        #info["is_success"] = arrive
+        info["goal_is_arrived"] = arrive
 
         return obs, reward, done, info
     
@@ -429,27 +429,6 @@ class GCSafetyGymBase(SafetyGymBase):
         return flat_obs
     
     def get_obs(self):
-        """
-            Point env state = (dx_goal, dy_goal, 
-                               a_x, a_y, a_z, v_x, v_y, v_z, 
-                               w_x, w_y, w_z, ?_x, ?_y, ?_z, 
-                               obst_1_dx, obst_1_dy)
-            where 
-                self.num_relevant_dim = 2 # dx_goal, dy_goal for goal
-                self.obstacle_in_obs = 2 # obst_1_dx, obst_1_dy for obsts
-        """
-        """
-        return np.concatenate([
-                               # state
-                               self.goal_obs(),
-                               self.robot_obs(), # absolute robot acc, velocities
-                               self.obstacle_obs(), # obsts with respect to obs
-                               # goal
-                               self.robot_goal_pos(),
-                               self.robot_goal_obs(), # absolute goal acc, velocities
-                               self.obstacle_goal_obs() # obsts with respect to goal
-                               ])
-        """        
         state = np.concatenate([
                                self.goal_obs(),
                                self.robot_obs(), # absolute robot acc, velocities
