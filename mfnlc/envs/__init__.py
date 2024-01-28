@@ -47,9 +47,8 @@ def get_env(env_name: str):
         env = DoggoNav(end_on_collision=True)
     # goal conditioned envs
     elif env_name == "GCPoint":
-        #env = TimeLimit(GCPointNav(), env_config[robot_name]["max_step"])
-        env = GCPointNav(end_on_collision=True,
-                         no_obstacle=False,
+        env = GCPointNav(end_on_collision=True, # True
+                         no_obstacle=False, # False
                          max_episode_steps=env_config[robot_name]["max_step"])
     else:
         raise NotImplementedError(f"Unsupported environment - {env_name}")

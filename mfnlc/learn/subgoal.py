@@ -103,6 +103,9 @@ class CustomActorCriticPolicy:
 	"""
 	def __init__(self, device):
 		self.device = device
+		self.actor = None
+		self.critic = None
+		
 	def select_action(self, state, goal, deterministic):
 		with torch.no_grad():
 			state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
@@ -128,10 +131,6 @@ class CustomActorCriticPolicy:
 
 		with torch.no_grad():
 			actions = self.select_action(state, goal, deterministic=deterministic)
-
-		# Remove batch dimension if needed
-		#if not vectorized_env:
-		#	actions = actions[0]
 
 		return actions, state
 	

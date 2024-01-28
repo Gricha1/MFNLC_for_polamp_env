@@ -83,6 +83,7 @@ cd safety-gym
 pip install -e .
 cd ..
 pip install -e .
+install mujoco (it wasnt installed in docker file dont know why)
 ```
 
 # changed to deps
@@ -168,6 +169,13 @@ change:
 ```commandline
 #z = np.complex(*self.ego_xy(pos))  # X, Y as real, imaginary components
 z = self.ego_xy(pos)[0] + self.ego_xy(pos)[1] * 1j
+```
+
+3. AssertionError: Bad obs {'goal_lidar': array ...
+in safety-gym/safety_gym/envs/engine.py
+comment:
+```commandline
+#assert self.observation_space.contains(obs), f'Bad obs {obs} {self.observation_space}'
 ```
 
 # set polamp env deps

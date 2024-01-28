@@ -24,18 +24,18 @@ from mfnlc.learn.subgoal import LaplacePolicy, GaussianPolicy, EnsembleCritic, C
 class SafetyRis(SAC):
     def __init__(
         self,
-        actor: GaussianPolicy,
-        critic: EnsembleCritic,
+        policy: CustomActorCriticPolicy,
         subgoal_net: LaplacePolicy,
         state_dim: int,
         action_dim: int,
-        policy: Union[str, Type[SACPolicy]],
+        policy_to_delete: Union[str, Type[SACPolicy]],
         env: Union[GymEnv, str],
         h_lr: float = 1e-4, 
         q_lr: float = 1e-3,
         pi_lr: float = 1e-4, 
         epsilon: float = 1e-16,
-        max_grad_norm: float = None,
+        critic_max_grad_norm: float = None,
+        actor_max_grad_norm: float = None,
         learning_rate: Union[float, Schedule] = 3e-4,
         buffer_size: int = 1_000_000,  # 1e6
         learning_starts: int = 100,
@@ -68,7 +68,7 @@ class SafetyRis(SAC):
     ):
 
         super(SafetyRis, self).__init__(
-            policy,
+            policy_to_delete,
             env,
             learning_rate,
             buffer_size,
@@ -97,9 +97,12 @@ class SafetyRis(SAC):
             _init_setup_model=False,
         )
 
-
         self.state_dim = state_dim
         self.action_dim = action_dim
+
+        self.pi_lr = pi_lr
+        self.q_lr = q_lr
+        self.new_policy = policy
 
         # subgoal
         self.subgoal_net = subgoal_net
@@ -109,14 +112,8 @@ class SafetyRis(SAC):
         self.n_ensemble = n_ensemble
         self.clip_v_function = clip_v_function
         self.epsilon = epsilon
-        self.max_grad_norm = max_grad_norm
-        self.actor_max_grad_norm = 2.0
-        # actor
-        self.new_actor = actor
-        self.actor_optimizer = th.optim.Adam(self.new_actor.parameters(), lr=pi_lr)
-        # critic
-        self.new_critic = critic
-        self.critic_optimizer = th.optim.Adam(self.new_critic.parameters(), lr=q_lr)
+        self.critic_max_grad_norm = critic_max_grad_norm
+        self.actor_max_grad_norm = actor_max_grad_norm
 
         if _init_setup_model:
             self._setup_model()
@@ -126,6 +123,7 @@ class SafetyRis(SAC):
         self._setup_alias()
 
     def _setup_alias(self) -> None:
+        # setup new actor critic
         del self.actor
         del self.critic
         del self.critic_target
@@ -133,14 +131,13 @@ class SafetyRis(SAC):
         del self.policy.critic
         del self.policy.critic_target
         del self.policy
-        self.policy = CustomActorCriticPolicy(self.device)
-        self.actor = self.new_actor
+        self.policy = self.new_policy
+        self.actor = self.policy.actor
+        self.critic = self.policy.critic
         self.actor_target = deepcopy(self.actor)
-        self.critic = self.new_critic
         self.critic_target = deepcopy(self.critic)
-        self.policy.actor = self.actor
-        self.policy.critic = self.critic
-        self.policy.critic_target = self.critic_target
+        self.actor_optimizer = th.optim.Adam(self.actor.parameters(), lr=self.pi_lr)
+        self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=self.q_lr)
     
     # RIS requires training each time when env.step()
     def _on_step(self):
@@ -264,9 +261,9 @@ class SafetyRis(SAC):
             # Optimize the critic
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
-            if not(self.max_grad_norm is None):
-                if self.max_grad_norm > 0:
-                    th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.max_grad_norm)
+            if not(self.critic_max_grad_norm is None):
+                if self.critic_max_grad_norm > 0:
+                    th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.critic_max_grad_norm)
             self.critic_optimizer.step()
                 
             # Optimize the subgoal policy
@@ -282,8 +279,9 @@ class SafetyRis(SAC):
             # Optimize the actor 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
-            if self.actor_max_grad_norm > 0:
-                th.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.actor_max_grad_norm)
+            if not(self.actor_max_grad_norm is None):
+                if self.actor_max_grad_norm > 0:
+                    th.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.actor_max_grad_norm)
             self.actor_optimizer.step()
 
             # Update target networks

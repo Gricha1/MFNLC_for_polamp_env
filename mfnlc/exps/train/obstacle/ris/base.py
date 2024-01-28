@@ -19,12 +19,12 @@ from mfnlc.config import get_path, default_device
 from mfnlc.envs import get_env, get_sub_proc_env
 from mfnlc.exps.train.utils import copy_current_model_to_log_dir
 from mfnlc.learn.safety_ris import SafetyRis
-from mfnlc.learn.subgoal import LaplacePolicy, EnsembleCritic, GaussianPolicy
+from mfnlc.learn.subgoal import LaplacePolicy, EnsembleCritic, GaussianPolicy, CustomActorCriticPolicy
 
 
 def train(env_name,
           total_timesteps: int,
-          policy: Union[str, Type[TD3Policy]] = "MlpPolicy",
+          policy_to_delete: Union[str, Type[TD3Policy]] = "MlpPolicy",
           learning_rate: Union[float, Schedule] = 1e-3,
           buffer_size: int = 1_000_000,  # 1e6
           learning_starts: int = 100,
@@ -34,9 +34,7 @@ def train(env_name,
           train_freq: Union[int, Tuple[int, str]] = (1, "episode"),
           gradient_steps: int = 40,
           action_noise: Optional[ActionNoise] = None,
-          # HER hyperparams
-          # Available strategies (cf paper): future, final, episode
-          goal_selection_strategy = "future", # equivalent to GoalSelectionStrategy.FUTURE
+          goal_selection_strategy = "future", # Available strategies (cf paper): future, final, episode
           replay_buffer_class: Optional[ReplayBuffer] = None,
           replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
           optimize_memory_usage: bool = False,
@@ -46,10 +44,7 @@ def train(env_name,
           use_sde = False,
           sde_sample_freq = -1,
           use_sde_at_warmup = False,
-          #policy_delay: int = 2, # TD3
-          #target_policy_noise: float = 0.2, # TD3
-          #target_noise_clip: float = 0.5, # TD3
-          subgoal_policy_kwargs: Optional[Dict[str, Any]] = None, # RIS
+          new_policy_kwargs: Optional[Dict[str, Any]] = None, # RIS
           h_lr = 1e-3, # RIS
           q_lr = 1e-3, # RIS
           pi_lr = 1e-4, # RIS
@@ -58,9 +53,10 @@ def train(env_name,
           Lambda = 0.1, # RIS
           n_ensemble = 10, # RIS
           clip_v_function = -150, # RIS,
-          max_grad_norm: float = None, # RIS
+          critic_max_grad_norm: float = None, # RIS
+          actor_max_grad_norm: float = None, # RIS
           create_eval_env: bool = False,
-          policy_kwargs: Optional[Dict[str, Any]] = None,
+          policy_to_delete_kwargs: Optional[Dict[str, Any]] = None,
           verbose: int = 1,
           seed: Optional[int] = None,
           callback: MaybeCallback = None,
@@ -72,6 +68,7 @@ def train(env_name,
           eval_log_path: Optional[str] = None,
           reset_num_timesteps: bool = True,
           n_envs: int = 1,
+          validate_freq: int = 5000
           ):
     algo = "ris"
     run = wandb.init(
@@ -115,11 +112,16 @@ def train(env_name,
                 robot_screens = []
                 positions_screens = []
                 self._is_success_buffer = []
+                self.collisions = []
                 dubug_info = {"acc_reward" : 0, "t": 0, "acc_cost" : 0}
 
                 def grab_screens(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
                     # predict subgoal and set to env
                     assert len(_locals["env"].envs) == 1
+                    if _locals['done'] and _locals['info']["collision"]:
+                        self.collisions.append(1.0)
+                    elif _locals['done']:
+                        self.collisions.append(0.0)
                     dubug_info["a0"] = _locals["actions"][0]
                     dubug_info["a1"] = _locals["actions"][1]
                     dubug_info["acc_reward"] += _locals["reward"]
@@ -175,11 +177,13 @@ def train(env_name,
                 mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
                 min_reward, max_reward = np.min(episode_rewards), np.max(episode_rewards)
                 mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
+                collision_rate = np.mean(self.collisions)
                 # Add to current Logger
                 self.logger.record("eval/reward", float(mean_reward))
                 self.logger.record("eval/ep_length", mean_ep_length)
                 self.logger.record("eval/reward_min", min_reward)
                 self.logger.record("eval/reward_max", max_reward)
+                self.logger.record("eval/collision_rate", collision_rate)
                 if len(self._is_success_buffer) > 0:
                     success_rate = np.mean(self._is_success_buffer)
                     self.logger.record("eval/success_rate", success_rate)
@@ -208,23 +212,27 @@ def train(env_name,
     assert env_obs_dim == env_goal_dim
     video_recorder = VideoRecorderCallback(callback_eval_env, 
                                            n_eval_episodes=10, 
-                                           render_freq=15_000,
+                                           render_freq=validate_freq,
                                            gradient_save_freq=0, # error if > 0 
                                            model_save_path=f"models/{run.id}",
                                            verbose=2)
 
     state_dim = env_obs_dim
     goal_dim = env_goal_dim
-    actor = GaussianPolicy(state_dim, action_dim, hidden_dims=subgoal_policy_kwargs["net_arch"]).to(default_device)
-    critic = EnsembleCritic(state_dim, action_dim, hidden_dims=subgoal_policy_kwargs["net_arch"],
+    actor = GaussianPolicy(state_dim, action_dim, 
+                           hidden_dims=new_policy_kwargs["net_arch"]).to(default_device)
+    critic = EnsembleCritic(state_dim, action_dim, 
+                            hidden_dims=new_policy_kwargs["net_arch"],
                             n_Q=2).to(default_device)
     subgoal_net = LaplacePolicy(state_dim=state_dim, 
                                 goal_dim=state_dim, 
-                                hidden_dims=subgoal_policy_kwargs["net_arch"]).to(default_device)
+                                hidden_dims=new_policy_kwargs["net_arch"]).to(default_device)
+    policy = CustomActorCriticPolicy(default_device)
+    policy.actor = actor
+    policy.critic = critic
 
     model = SafetyRis(
-        actor,
-        critic,
+        policy,
         subgoal_net,
         state_dim,
         action_dim,
@@ -234,7 +242,8 @@ def train(env_name,
         q_lr,
         pi_lr,
         epsilon,
-        max_grad_norm,
+        critic_max_grad_norm,
+        actor_max_grad_norm,
         learning_rate, buffer_size, learning_starts, batch_size, tau, gamma,
         train_freq, gradient_steps, action_noise, 
         HerReplayBuffer, #replay_buffer_class
@@ -245,7 +254,7 @@ def train(env_name,
         optimize_memory_usage, ent_coef, target_update_interval, target_entropy, 
         use_sde, sde_sample_freq, use_sde_at_warmup, 
         alpha, Lambda, n_ensemble, clip_v_function,
-        tensorboard_log, create_eval_env, policy_kwargs, verbose, seed, default_device)
+        tensorboard_log, create_eval_env, policy_to_delete_kwargs, verbose, seed, default_device)
 
     model.learn(total_timesteps, video_recorder, log_interval, eval_env, eval_freq,
                 n_eval_episodes, tb_log_name, eval_log_path, reset_num_timesteps)

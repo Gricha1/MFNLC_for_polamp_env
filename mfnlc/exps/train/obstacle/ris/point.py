@@ -10,8 +10,8 @@ def learn():
           total_timesteps=1600_000,
           learning_starts=10_000,
           action_noise=None,
-          subgoal_policy_kwargs={"net_arch": [100, 100]},
-          policy_kwargs={"net_arch": [100, 100]},
+          new_policy_kwargs={"net_arch": [100, 100]},
+          policy_to_delete_kwargs={"net_arch": [100, 100]},
           train_freq=(1, "episode"), #train_freq=(200, "step"),
           gradient_steps=1, #gradient_steps=100,
           h_lr=1e-4, # RIS
@@ -22,10 +22,12 @@ def learn():
           Lambda=0.1, # RIS
           n_ensemble=10, # RIS
           clip_v_function=-150, # RIS,
-          max_grad_norm=6.0, # RIS
+          critic_max_grad_norm=6.0, # RIS
+          actor_max_grad_norm=2.0, # RIS
           n_envs=1,
           batch_size=2048,
-          log_interval=4)
+          log_interval=4,
+          validate_freq=5000)
 
 
 def evaluate_controller():
