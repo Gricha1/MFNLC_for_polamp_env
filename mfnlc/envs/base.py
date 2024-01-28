@@ -398,6 +398,7 @@ class GCSafetyGymBase(SafetyGymBase):
         self.traj.append(self.robot_pos)
 
         info["goal_is_arrived"] = arrive
+        info["is_success"] = arrive
 
         return obs, reward, done, info
     
