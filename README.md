@@ -68,28 +68,41 @@ One can start tracing code from `exps` folder.
 ```
 
 
+# docker
+```commandline
+docker run -it --gpus "device=0" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace continuumio/miniconda3 /bin/bash -c "conda install python=3.8.5 -y && bash" 
+cd /usr/home/workspace
+```
 
+# run via Dockerfile
+```commandline
+cd MFNLC
+docker run -it --gpus "device=0" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace ris_safety_gym_img
+cd /usr/home/workspace 
+cd safety-gym
+pip install -e .
+cd ..
+pip install -e .
+```
 
 # changed to deps
 you need Python 3.8.5
-1. safetygym 
+
+2. safetygym 
 ```commandline
 git clone https://github.com/openai/safety-gym.git
-cd safety-gym
 ```
 in safety-gym/setup.py, comment mujoco_py
 #'mujoco_py==2.0.2.7',
 
 ```commandline
+cd safety-gym
 pip install -e .
 ```
 
-2. mfnlc
+3. mfnlc
 ```commandline
-cd MFNLC
-pip install -e .
-pip install onnxruntime
-pip install free-mujoco-py
+apt-get update
 apt-get install -y \
     libgl1-mesa-dev \
     libgl1-mesa-glx \
@@ -97,61 +110,49 @@ apt-get install -y \
     libosmesa6-dev \
     software-properties-common \
     patchelf
+pip install onnxruntime
+pip install free-mujoco-py
+
+```commandline
+cd MFNLC
+pip install -e .
+      if error with gym install: 
+            """
+               error in gym setup command: 'extras_require' must be a      
+               dictionary whose values are strings or lists of strings con
+               taining valid project/version requirement specifiers.
+            """
+      then:
+         pip install setuptools==65.5.0 pip==21
+         pip install wheel==0.38.0
 ```
-3. cuda deps (cuda is 11.4 so torch for 11.3 is appropiate)
+
+4. Install Mujoco for mujoco_py lib (Linux)
+```commandline
+apt-get install build-essential
+cd /root
+mkdir .mujoco
+wget https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz
+tar -xf mujoco210-linux-x86_64.tar.gz -C .mujoco
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bin
+```
+
+5. cuda deps (cuda is 11.4 so torch for 11.3 is appropiate)
+check if gpu exists:
+```commandline
+nvidia-smi
+```
 ```commandline
 pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113
 ```
 
-4. AttributeError: module 'numpy' has no attribute 'complex'. 
-   (NOT NECESSARY IF safety_gym is commented)
-in safety_gym/envs/engine.py
-change:
+6. deps for adding video to tensorboard & wandb
 ```commandline
-#z = np.complex(*self.ego_xy(pos))  # X, Y as real, imaginary components
-z = self.ego_xy(pos)[0] + self.ego_xy(pos)[1] * 1j
-```
-
-5. Add video to tensorboard
-```commandline
-pip install moviepy
-pip install opencv-python
-```
-
-# set polamp env deps
-export PYTHONPATH=$(pwd)/envs/bark_ml_ris:$PYTHONPATH
-
-
-# start tensorboard
-tensorboard --logdir mfnlc/mfnlc_data/ --bind_all
-
-# train point env
-```commandline
-cd mfnlc
-python exps/train/no_obstacle/custom_lyapunov_td3/point.py
-python exps/hierachical/custom_rrt_lyapunov/point.py
-```
-# train polamp env
-```commandline
-cd mfnlc
-python exps/train/no_obstacle/custom_lyapunov_td3/polamp_env.py
-python exps/hierachical/custom_rrt_lyapunov/polamp_env.py
-```
-
-# train RIS point env
-```commandline
-cd mfnlc
-python exps/train/obstacle/ris/point.py
-```
-
-# train TD3 point env
-```commandline
-cd mfnlc
-python exps/train/obstacle/td3/point.py
+pip install wandb moviepy opencv-python
 ```
 
 # troubles
-No such file or directory: '/home/reedgern/mipt_work_space/sem_3/NIR/other_algs/MFNLC/mfnlc/mfnlc_data/lyapunov_td3/Nav/model.zip.zip'
+1. No such file or directory: '/home/reedgern/mipt_work_space/sem_3/NIR/other_algs/MFNLC/mfnlc/mfnlc_data/lyapunov_td3/Nav/model.zip.zip'
 
 in Nav.py delete comments:
 ```commandline
@@ -159,3 +160,25 @@ colearn()
 # evaluate_controller()
 evaluate_lyapunov()
 ```
+
+2. AttributeError: module 'numpy' has no attribute 'complex'. 
+   (NOT NECESSARY IF safety_gym is commented)
+in safety-gym/safety_gym/envs/engine.py
+change:
+```commandline
+#z = np.complex(*self.ego_xy(pos))  # X, Y as real, imaginary components
+z = self.ego_xy(pos)[0] + self.ego_xy(pos)[1] * 1j
+```
+
+# set polamp env deps
+export PYTHONPATH=$(pwd)/envs/bark_ml_ris:$PYTHONPATH
+
+# start tensorboard
+tensorboard --logdir mfnlc/mfnlc_data/ --bind_all
+
+# train RIS point env
+```commandline
+cd mfnlc
+python exps/train/obstacle/ris/point.py
+```
+

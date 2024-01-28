@@ -110,6 +110,7 @@ class SafetyRis(SAC):
         self.clip_v_function = clip_v_function
         self.epsilon = epsilon
         self.max_grad_norm = max_grad_norm
+        self.actor_max_grad_norm = 2.0
         # actor
         self.new_actor = actor
         self.actor_optimizer = th.optim.Adam(self.new_actor.parameters(), lr=pi_lr)
@@ -281,8 +282,8 @@ class SafetyRis(SAC):
             # Optimize the actor 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
-            #if self.actor_max_grad_norm > 0:
-            #    th.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.actor_max_grad_norm)
+            if self.actor_max_grad_norm > 0:
+                th.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.actor_max_grad_norm)
             self.actor_optimizer.step()
 
             # Update target networks
