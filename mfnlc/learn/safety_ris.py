@@ -147,7 +147,7 @@ class SafetyRis(SAC):
             if gradient_steps > 0:
                 self.train(batch_size=self.batch_size, gradient_steps=gradient_steps)
         
-    def train_highlevel_policy(self, state, goal, subgoal, subgoal_net_losses=[], advs=[]):
+    def train_highlevel_policy(self, state, goal, subgoal, debug_info={}):
 		# Compute subgoal distribution 
         batch_size = state.shape[0] # 2048
         subgoal_distribution = self.subgoal_net(state, goal)
@@ -167,8 +167,10 @@ class SafetyRis(SAC):
 
         log_prob = subgoal_distribution.log_prob(subgoal).sum(-1)
         subgoal_loss = - (log_prob * weight).mean()
-        subgoal_net_losses.append(subgoal_loss.item())
-        advs.append(adv.mean().item())
+        debug_info["subgoal_net_losses"].append(subgoal_loss.item())
+        debug_info["advs"].append(adv.mean().item())
+        debug_info["target_subgoal_V"].append(v.mean().item())
+        debug_info["subgoal_V"].append(policy_v.mean().item())
 
         # Update network
         self.subgoal_optimizer.zero_grad()
@@ -229,7 +231,13 @@ class SafetyRis(SAC):
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
 
-        actor_losses, critic_losses, subgoal_net_losses, advs = [], [], [], []
+        actor_losses, critic_losses = [], []
+        debug_info = {}
+        debug_info["subgoal_net_losses"] = []
+        debug_info["advs"] = []
+        debug_info["Q"] = []
+        debug_info["target_subgoal_V"] = []
+        debug_info["subgoal_V"] = []
 
         for gradient_step in range(gradient_steps):
             # Sample replay buffer
@@ -245,6 +253,11 @@ class SafetyRis(SAC):
             done = replay_data.dones
             subgoal = subgoals_replay_data.observations["observation"]
 
+            # test HER buffer goal reach
+            #assert (np.sqrt((next_state - goal) ** 2) <  == done).all()
+            # test HER buffer collision
+
+
             """ Critic """
             # Compute target Q
             with th.no_grad():
@@ -257,6 +270,7 @@ class SafetyRis(SAC):
             Q = self.critic(state, action, goal)
             critic_loss = 0.5 * (Q - target_Q).pow(2).sum(-1).mean()
             critic_losses.append(critic_loss.item())
+            debug_info["Q"].append(Q.mean().item())
 
             # Optimize the critic
             self.critic_optimizer.zero_grad()
@@ -267,7 +281,7 @@ class SafetyRis(SAC):
             self.critic_optimizer.step()
                 
             # Optimize the subgoal policy
-            self.train_highlevel_policy(state, goal, subgoal, subgoal_net_losses, advs) # test
+            self.train_highlevel_policy(state, goal, subgoal, debug_info) # test
             
             """ Actor """
             action, D_KL = self.sample_action_and_KL(state, goal)
@@ -293,9 +307,12 @@ class SafetyRis(SAC):
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/actor_loss", np.mean(actor_losses))
         self.logger.record("train/critic_loss", np.mean(critic_losses))
-        self.logger.record("train/subgoal_net_loss", np.mean(subgoal_net_losses))
-        self.logger.record("train/adv", np.mean(advs))        
+        self.logger.record("train/subgoal_net_loss", np.mean(debug_info["subgoal_net_losses"]))
+        self.logger.record("train/adv", np.mean(debug_info["advs"]))        
+        self.logger.record("train/Q", np.mean(debug_info["Q"]))        
         self.logger.record("train/D_KL", D_KL.mean().item())
+        self.logger.record("train/target_subgoal_V", np.mean(debug_info["target_subgoal_V"]))
+        self.logger.record("train/subgoal_V", np.mean(debug_info["subgoal_V"]))
 
     def _excluded_save_params(self) -> List[str]:
         return super(SafetyRis, self)._excluded_save_params() + ["actor", "critic", "critic_target"]
