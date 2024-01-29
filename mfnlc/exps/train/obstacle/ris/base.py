@@ -256,7 +256,7 @@ def train(env_name,
         dict(
             n_sampled_goal=4,
             goal_selection_strategy=goal_selection_strategy,
-            online_sampling=False,
+            online_sampling=True,
         ), # replay_buffer_kwargs
         optimize_memory_usage, ent_coef, target_update_interval, target_entropy, 
         use_sde, sde_sample_freq, use_sde_at_warmup, 
