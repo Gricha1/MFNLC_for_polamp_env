@@ -172,7 +172,7 @@ class SafetyRis(SAC):
         collision_batch     = batch["collision"]       
         
         # Compute sparse rewards: -1 for all actions until the goal is reached
-        reward_batch = np.sqrt(np.power(np.array(next_state_batch)[:, :2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
+        reward_batch = np.sqrt(np.power(np.array(next_state_batch - goal_batch)[:, :2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
         if True:
             # if the state has zero velocity we can reward agent multiple times
             #done_batch   = 1.0 * env.is_terminal_dist * (reward_batch < env.SOFT_EPS) + 1.0 * (np.array(next_state_batch)[:, 3:4] > 0.01)# terminal condition

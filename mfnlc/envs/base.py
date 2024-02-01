@@ -369,8 +369,8 @@ class GCSafetyGymBase(SafetyGymBase):
     
     def set_subgoal_pos(self, subgoal_related_pos):
         self.subgoal_pos = []
-        self.subgoal_pos.append(self.env.goal_pos[0] - subgoal_related_pos[0][0][0].item())
-        self.subgoal_pos.append(self.env.goal_pos[1] - subgoal_related_pos[0][0][1].item())
+        self.subgoal_pos.append(subgoal_related_pos[0][0][0].item())
+        self.subgoal_pos.append(subgoal_related_pos[0][0][1].item())
 
     def reset(self, **kwargs):
         self.subgoal_pos = None
@@ -435,12 +435,12 @@ class GCSafetyGymBase(SafetyGymBase):
     
     def get_obs(self):
         state = np.concatenate([
-                               self.goal_obs(),
+                               self.env.robot_pos[:self.num_relevant_dim],
                                self.robot_obs(), # absolute robot acc, velocities
                                self.obstacle_obs(), # obsts with respect to obs
                                ])
         goal = np.concatenate([
-                               self.robot_goal_pos(),
+                               self.env.goal_pos[:self.num_relevant_dim],
                                self.robot_goal_obs(), # absolute goal acc, velocities
                                self.obstacle_goal_obs() # obsts with respect to goal
                                ])
