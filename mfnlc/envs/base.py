@@ -317,14 +317,16 @@ class GCSafetyGymBase(SafetyGymBase):
                 (self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs * self.num_relevant_dim),
                 dtype=np.float32)
         observation_low = -observation_high
-        #self.observation_space = gym.spaces.Box(observation_low, observation_high, dtype=np.float32)
         self.observation_space = gym.spaces.Dict({
             "observation": gym.spaces.Box(observation_low, observation_high, dtype=np.float32),
             "desired_goal": gym.spaces.Box(observation_low, observation_high, dtype=np.float32),
             "achieved_goal": gym.spaces.Box(observation_low, observation_high, dtype=np.float32),
+            "collision": gym.spaces.Box(0.0, 1.0, (1,), np.float32),
+            "clearance_is_enough": gym.spaces.Box(0.0, 1.0, (1,), np.float32)
         })
     
-    def compute_reward(self, achieved_goal, desired_goal, info):
+    #def compute_rewards(self, achieved_goal, desired_goal, info):
+    def compute_rewards(self, new_actions, new_next_obs_dict):
         """Compute the step reward. This externalizes the reward function and makes
         it dependent on an a desired goal and the one that was achieved. If you wish to include
         additional rewards that are independent of the goal, you can include the necessary values
@@ -344,8 +346,9 @@ class GCSafetyGymBase(SafetyGymBase):
         """
         #reward = self.get_goal_reward() + collision * self.collision_penalty + arrive * self.arrive_reward
         # input: batch_shape x state_shape
-        collisions = np.array([float(el["collision"]) for el in info])
-        return self.time_step_reward * np.ones_like(achieved_goal[:, 0]) + self.collision_penalty * collisions
+        #collisions = np.array([float(el["collision"]) for el in info])
+        #return self.time_step_reward * np.ones_like(achieved_goal[:, 0]) + self.collision_penalty * collisions
+        return self.time_step_reward * np.ones_like(new_actions[:, 0])
             
     def obstacle_goal_obs(self) -> np.ndarray:
         """
@@ -390,6 +393,7 @@ class GCSafetyGymBase(SafetyGymBase):
             done = arrive or done
 
         obs = self.get_obs()
+        obs["collision"] = collision
         #if arrive:
         #    # if the robot meets goal, the goal will be reset immediately
         #    # this can cause the goal observation has large jumps and affect Lyapunov function
@@ -440,10 +444,14 @@ class GCSafetyGymBase(SafetyGymBase):
                                self.robot_goal_obs(), # absolute goal acc, velocities
                                self.obstacle_goal_obs() # obsts with respect to goal
                                ])
+        collision = False
+        clearance_is_enough = False
         return {
             "observation": state,
             "desired_goal": goal,
             "achieved_goal": state,
+            "collision" : collision,
+            "clearance_is_enough": clearance_is_enough,
         }
     
     def custom_render(self, positions_render=False, dubug_info={}, shape=(600, 600)):

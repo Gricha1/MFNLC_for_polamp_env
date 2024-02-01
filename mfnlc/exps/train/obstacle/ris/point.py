@@ -10,7 +10,7 @@ def learn():
           total_timesteps=1600_000,
           learning_starts=10_000,
           action_noise=None,
-          new_policy_kwargs={"net_arch": [100, 100]},
+          new_policy_kwargs={"net_arch": [256, 256]},
           policy_to_delete_kwargs={"net_arch": [100, 100]},
           train_freq=(1, "episode"), #train_freq=(200, "step"),
           gradient_steps=1, #gradient_steps=100,

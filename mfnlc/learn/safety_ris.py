@@ -14,11 +14,13 @@ from stable_baselines3.common.save_util import load_from_zip_file, recursive_set
 from stable_baselines3.common.type_aliases import GymEnv, Schedule
 from stable_baselines3.common.utils import polyak_update, check_for_correct_spaces
 from stable_baselines3.sac.policies import SACPolicy
+from stable_baselines3.common.type_aliases import TrainFreq, TrainFrequencyUnit
 from torch.nn import functional as F
 
 from mfnlc.config import default_device
 from mfnlc.learn.utils import list_dict_to_dict_list
 from mfnlc.learn.subgoal import LaplacePolicy, GaussianPolicy, EnsembleCritic, CustomActorCriticPolicy
+from mfnlc.learn.HER import HERReplayBuffer, PathBuilder
 
 
 class SafetyRis(SAC):
@@ -115,6 +117,23 @@ class SafetyRis(SAC):
         self.critic_max_grad_norm = critic_max_grad_norm
         self.actor_max_grad_norm = actor_max_grad_norm
 
+        # path builder for HER
+        vectorized = False
+        self.path_builder = PathBuilder()
+        self.custom_replay_buffer = HERReplayBuffer(
+            max_size=500_000,
+            env=env,
+            fraction_goals_are_rollout_goals = 0.2,
+            fraction_resampled_goals_are_env_goals = 0.0,
+            fraction_resampled_goals_are_replay_buffer_goals = 0.5,
+            ob_keys_to_save     =["collision", "clearance_is_enough"],
+            desired_goal_keys   =["desired_goal"],
+            observation_key     = 'observation',
+            desired_goal_key    = 'desired_goal',
+            achieved_goal_key   = 'achieved_goal',
+            vectorized          = vectorized 
+        )
+
         if _init_setup_model:
             self._setup_model()
 
@@ -138,6 +157,70 @@ class SafetyRis(SAC):
         self.critic_target = deepcopy(self.critic)
         self.actor_optimizer = th.optim.Adam(self.actor.parameters(), lr=self.pi_lr)
         self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=self.q_lr)
+
+    
+    def sample_and_preprocess_batch(self, replay_buffer, env, batch_size=256, device=th.device("cuda")):
+        # Extract 
+        batch = replay_buffer.random_batch(batch_size)
+        state_batch         = batch["observations"]
+        action_batch        = batch["actions"]
+        next_state_batch    = batch["next_observations"]
+        goal_batch          = batch["resampled_goals"]
+        reward_batch        = batch["rewards"]
+        done_batch          = batch["terminals"]
+        clearance_is_enough_batch = batch["clearance_is_enough"]
+        collision_batch     = batch["collision"]       
+        
+        # Compute sparse rewards: -1 for all actions until the goal is reached
+        reward_batch = np.sqrt(np.power(np.array(next_state_batch)[:, :2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
+        if True:
+            # if the state has zero velocity we can reward agent multiple times
+            #done_batch   = 1.0 * env.is_terminal_dist * (reward_batch < env.SOFT_EPS) + 1.0 * (np.array(next_state_batch)[:, 3:4] > 0.01)# terminal condition
+            done_batch   = 1.0 * (reward_batch < env.envs[0].env.env.goal_size)# terminal condition
+            done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch)
+            #done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch // (1.0 * env.is_terminal_dist + 1.0 * env.is_terminal_angle))
+            reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward)) * (1.0 - collision_batch) \
+                            + (env.envs[0].env.collision_penalty) * collision_batch
+        else:
+            done_batch   = 1.0 * (reward_batch < env.SOFT_EPS) # terminal condition
+            reward_batch = - np.ones_like(done_batch) * env.abs_time_step_reward
+
+        cost_batch = (- np.ones_like(done_batch) * 0)
+        """
+        if env.static_env:
+            velocity_array = np.abs(next_state_batch[:, 3:4])
+            if args.use_lower_velocity_bound:
+                min_ris_velocity = 0.3
+                # cost_collision = fabs(env.collision_reward)
+                # adding threshold to lower velocity bound
+                velocity_limit_exceeded = velocity_array >= min_ris_velocity
+                updated_velocity_array = velocity_array * velocity_limit_exceeded
+                cost_batch = (np.ones_like(done_batch) * updated_velocity_array) * (1.0 - clearance_is_enough_batch)
+                # cost_batch = (1.0 - collision_batch) * cost_batch + cost_collision * collision_batch
+            else:
+                cost_batch = (np.ones_like(done_batch) * velocity_array) * (1.0 - clearance_is_enough_batch)
+
+        else:
+            cost_batch = (- np.ones_like(done_batch) * 0)
+        """
+        # Scaling
+        # if args.scaling > 0.0:
+        #     reward_batch = reward_batch * args.scaling
+        # check if (collision == 1) then (done == 1)
+        #if env.static_env and not env.teleport_back_on_collision:
+        #    assert ( (1.0 - 1.0 * collision_batch) + (1.0 * collision_batch) * (1.0 * done_batch) ).all()
+
+        # Convert to Pytorch
+        state_batch         = th.FloatTensor(state_batch).to(device)
+        action_batch        = th.FloatTensor(action_batch).to(device)
+        reward_batch        = th.FloatTensor(reward_batch).to(device)
+        cost_batch        = th.FloatTensor(cost_batch).to(device)
+        next_state_batch    = th.FloatTensor(next_state_batch).to(device)
+        done_batch          = th.FloatTensor(done_batch).to(device)
+        goal_batch          = th.FloatTensor(goal_batch).to(device)
+
+        return state_batch, action_batch, reward_batch, cost_batch, next_state_batch, done_batch, goal_batch
+
     
     # RIS requires training each time when env.step()
     def _on_step(self):
@@ -146,6 +229,107 @@ class SafetyRis(SAC):
             # Special case when the user passes `gradient_steps=0`
             if gradient_steps > 0:
                 self.train(batch_size=self.batch_size, gradient_steps=gradient_steps)
+
+    def collect_rollouts(
+        self,
+        env,
+        callback,
+        train_freq,
+        replay_buffer: ReplayBuffer,
+        action_noise: Optional[ActionNoise] = None,
+        learning_starts: int = 0,
+        log_interval: Optional[int] = None,
+    ):
+        # collect_rollouts should collect one full episode to self.path_builder
+        # TODO vec env resets env if it is terminated, so i have to accout last obs
+        assert train_freq.unit == TrainFrequencyUnit.EPISODE and \
+               train_freq.frequency == 1 
+        self.path_builder = PathBuilder()
+        rollout = super().collect_rollouts(
+                self.env,
+                train_freq=self.train_freq,
+                action_noise=self.action_noise,
+                callback=callback,
+                learning_starts=self.learning_starts,
+                replay_buffer=self.replay_buffer,
+                log_interval=log_interval,
+            )
+        self.custom_replay_buffer.add_path(self.path_builder.get_all_stacked())  
+        return rollout
+
+    def _store_transition(
+        self,
+        replay_buffer: ReplayBuffer,
+        buffer_action: np.ndarray,
+        new_obs: Union[np.ndarray, Dict[str, np.ndarray]],
+        reward: np.ndarray,
+        dones: np.ndarray,
+        infos: List[Dict[str, Any]],
+    ) -> None:
+        """
+        Store transition in the replay buffer.
+        We store the normalized action and the unnormalized observation.
+        It also handles terminal observations (because VecEnv resets automatically).
+
+        :param replay_buffer: Replay buffer object where to store the transition.
+        :param buffer_action: normalized action
+        :param new_obs: next observation in the current episode
+            or first observation of the episode (when dones is True)
+        :param reward: reward for the current transition
+        :param dones: Termination signal
+        :param infos: List of additional information about the transition.
+            It may contain the terminal observations and information about timeout.
+        """
+        # Store only the unnormalized version
+        if self._vec_normalize_env is not None:
+            new_obs_ = self._vec_normalize_env.get_original_obs()
+            reward_ = self._vec_normalize_env.get_original_reward()
+        else:
+            # Avoid changing the original ones
+            self._last_original_obs, new_obs_, reward_ = self._last_obs, new_obs, reward
+
+        # Avoid modification by reference
+        next_obs = deepcopy(new_obs_)
+        # As the VecEnv resets automatically, new_obs is already the
+        # first observation of the next episode
+        for i, done in enumerate(dones):
+            if done and infos[i].get("terminal_observation") is not None:
+                if isinstance(next_obs, dict):
+                    next_obs_ = infos[i]["terminal_observation"]
+                    # VecNormalize normalizes the terminal observation
+                    if self._vec_normalize_env is not None:
+                        next_obs_ = self._vec_normalize_env.unnormalize_obs(next_obs_)
+                    # Replace next obs for the correct envs
+                    for key in next_obs.keys():
+                        next_obs[key][i] = next_obs_[key]
+                else:
+                    next_obs[i] = infos[i]["terminal_observation"]
+                    # VecNormalize normalizes the terminal observation
+                    if self._vec_normalize_env is not None:
+                        next_obs[i] = self._vec_normalize_env.unnormalize_obs(next_obs[i, :])
+
+        #replay_buffer.add(
+        #    self._last_original_obs,
+        #    next_obs,
+        #    buffer_action,
+        #    reward_,
+        #    dones,
+        #    infos,
+        #)
+
+        assert self.n_envs == 1
+        self.path_builder.add_all(
+            observations=self._last_original_obs,
+            actions=buffer_action,
+            rewards=reward_,
+            next_observations=next_obs,
+            terminals=[1.0*dones[0]]
+        )
+        
+        self._last_obs = new_obs
+        # Save the unnormalized observation
+        if self._vec_normalize_env is not None:
+            self._last_original_obs = new_obs_
         
     def train_highlevel_policy(self, state, goal, subgoal, debug_info={}):
 		# Compute subgoal distribution 
@@ -241,17 +425,25 @@ class SafetyRis(SAC):
 
         for gradient_step in range(gradient_steps):
             # Sample replay buffer
-            replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
+            #replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
             # sample more states for subgoals
-            subgoals_replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
-
-            state = replay_data.observations["observation"]
-            goal = replay_data.observations["desired_goal"]
-            action = replay_data.actions
-            reward = replay_data.rewards
-            next_state = replay_data.next_observations["observation"]
-            done = replay_data.dones
-            subgoal = subgoals_replay_data.observations["observation"]
+            #subgoals_replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
+            state, action, reward, cost, next_state, done, goal = self.sample_and_preprocess_batch(
+                self.custom_replay_buffer, 
+                env=self.env,
+                batch_size=batch_size,
+                device=self.device
+            )
+            # Sample subgoal candidates uniformly in the replay buffer
+            subgoal = th.FloatTensor(self.custom_replay_buffer.random_state_batch(batch_size)).to(self.device)
+            
+            #state = replay_data.observations["observation"]
+            #goal = replay_data.observations["desired_goal"]
+            #action = replay_data.actions
+            #reward = replay_data.rewards
+            #next_state = replay_data.next_observations["observation"]
+            #done = replay_data.dones
+            #subgoal = subgoals_replay_data.observations["observation"]
 
             # test HER buffer goal reach
             #assert (np.sqrt((next_state - goal) ** 2) <  == done).all()
