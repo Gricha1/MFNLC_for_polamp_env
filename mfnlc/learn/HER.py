@@ -60,7 +60,8 @@ def stack_list(lst):
     if isinstance(lst[0], dict):
         return lst
     else:
-        return np.array(lst)
+        # bug with actions
+        return np.array(lst, dtype="object")
 
 
 class HERReplayBuffer():
@@ -221,7 +222,11 @@ class HERReplayBuffer():
                 )
         else:
             slc = np.s_[self._top:self._top + path_len, :]
-            self._actions[slc] = actions
+            # bug with actions
+            try:
+                self._actions[slc] = actions
+            except:
+                actions = np.concatenate(actions, axis=0)
             self._terminals[slc] = terminals
             for key in self.ob_keys_to_save + self.internal_keys:
                 self._obs[key][slc] = obs[key]

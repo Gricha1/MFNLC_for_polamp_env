@@ -422,15 +422,15 @@ class GCSafetyGymBase(SafetyGymBase):
         flat_obs = np.zeros(self.robot_obs_size)
         offset = 0
 
-        for k in sorted(self.env.obs_space_dict.keys()):
-            if "lidar" in k:
-                continue
-            k_size = np.prod(obs[k].shape)
-            if "accelerometer" in k:
-                copy_obs = copy.deepcopy(obs[k])
-                copy_obs[:2] = 0 # acc_x, acc_y = 0, 0
-                flat_obs[offset:offset + k_size] = copy_obs.flat
-            offset += k_size
+        #for k in sorted(self.env.obs_space_dict.keys()):
+        #    if "lidar" in k:
+        #        continue
+        #    k_size = np.prod(obs[k].shape)
+        #    if "accelerometer" in k:
+        #        copy_obs = copy.deepcopy(obs[k])
+        #        copy_obs[:2] = 0 # acc_x, acc_y = 0, 0
+        #        flat_obs[offset:offset + k_size] = copy_obs.flat
+        #    offset += k_size
         return flat_obs
     
     def get_obs(self):
