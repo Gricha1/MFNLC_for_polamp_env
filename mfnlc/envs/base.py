@@ -100,7 +100,7 @@ class SafetyGymBase(EnvBase):
                                    for obs_name in self.env.obs_space_dict
                                    if 'lidar' not in obs_name])
 
-        self.obstacle_in_obs = 2
+        self.obstacle_in_obs = 2 # 2
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
 
         # Reward config
@@ -182,10 +182,7 @@ class SafetyGymBase(EnvBase):
         return self.get_obs()
 
     def goal_obs(self) -> np.ndarray:
-        if self.subgoal is not None:
-            goal_obs = self.subgoal[:self.num_relevant_dim] - self.env.robot_pos[:self.num_relevant_dim]
-        else:
-            goal_obs = (self.env.goal_pos - self.env.robot_pos)[:self.num_relevant_dim]
+        goal_obs = (self.env.goal_pos - self.env.robot_pos)[:self.num_relevant_dim]
         return goal_obs
 
     def robot_obs(self) -> np.ndarray:
@@ -325,29 +322,7 @@ class GCSafetyGymBase(SafetyGymBase):
             "clearance_is_enough": gym.spaces.Box(0.0, 1.0, (1,), np.float32)
         })
     
-    #def compute_rewards(self, achieved_goal, desired_goal, info):
     def compute_rewards(self, new_actions, new_next_obs_dict):
-        """Compute the step reward. This externalizes the reward function and makes
-        it dependent on an a desired goal and the one that was achieved. If you wish to include
-        additional rewards that are independent of the goal, you can include the necessary values
-        to derive it in info and compute it accordingly.
-
-        Args:
-            achieved_goal (object): the goal that was achieved during execution
-            desired_goal (object): the desired goal that we asked the agent to attempt to achieve
-            info (dict): an info dictionary with additional information
-
-        Returns:
-            float: The reward that corresponds to the provided achieved goal w.r.t. to the desired
-            goal. Note that the following should always hold true:
-
-                ob, reward, done, info = env.step()
-                assert reward == env.compute_reward(ob['achieved_goal'], ob['goal'], info)
-        """
-        #reward = self.get_goal_reward() + collision * self.collision_penalty + arrive * self.arrive_reward
-        # input: batch_shape x state_shape
-        #collisions = np.array([float(el["collision"]) for el in info])
-        #return self.time_step_reward * np.ones_like(achieved_goal[:, 0]) + self.collision_penalty * collisions
         return self.time_step_reward * np.ones_like(new_actions[:, 0])
             
     def obstacle_goal_obs(self) -> np.ndarray:
@@ -422,15 +397,17 @@ class GCSafetyGymBase(SafetyGymBase):
         flat_obs = np.zeros(self.robot_obs_size)
         offset = 0
 
-        #for k in sorted(self.env.obs_space_dict.keys()):
-        #    if "lidar" in k:
-        #        continue
-        #    k_size = np.prod(obs[k].shape)
-        #    if "accelerometer" in k:
-        #        copy_obs = copy.deepcopy(obs[k])
-        #        copy_obs[:2] = 0 # acc_x, acc_y = 0, 0
-        #        flat_obs[offset:offset + k_size] = copy_obs.flat
-        #    offset += k_size
+        for k in sorted(self.env.obs_space_dict.keys()):
+            if "lidar" in k:
+                continue
+            k_size = np.prod(obs[k].shape)
+            if not "accelerometer" in k:
+                continue
+            if "accelerometer" in k:
+                copy_obs = copy.deepcopy(obs[k])
+                copy_obs[:2] = 0 # acc_x, acc_y, acc_z = 0, 0, 9.81
+                flat_obs[offset:offset + k_size] = copy_obs.flat
+            offset += k_size
         return flat_obs
     
     def get_obs(self):

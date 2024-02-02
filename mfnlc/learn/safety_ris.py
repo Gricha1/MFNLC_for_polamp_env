@@ -173,17 +173,12 @@ class SafetyRis(SAC):
         
         # Compute sparse rewards: -1 for all actions until the goal is reached
         reward_batch = np.sqrt(np.power(np.array(next_state_batch)[:, :2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
-        if True:
-            # if the state has zero velocity we can reward agent multiple times
-            #done_batch   = 1.0 * env.is_terminal_dist * (reward_batch < env.SOFT_EPS) + 1.0 * (np.array(next_state_batch)[:, 3:4] > 0.01)# terminal condition
-            done_batch   = 1.0 * (reward_batch < env.envs[0].env.env.goal_size)# terminal condition
-            done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch)
-            #done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch // (1.0 * env.is_terminal_dist + 1.0 * env.is_terminal_angle))
-            reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward)) * (1.0 - collision_batch) \
-                            + (env.envs[0].env.collision_penalty) * collision_batch
-        else:
-            done_batch   = 1.0 * (reward_batch < env.SOFT_EPS) # terminal condition
-            reward_batch = - np.ones_like(done_batch) * env.abs_time_step_reward
+        # if the state has zero velocity we can reward agent multiple times
+        #done_batch   = 1.0 * env.is_terminal_dist * (reward_batch < env.SOFT_EPS) + 1.0 * (np.array(next_state_batch)[:, 3:4] > 0.01)# terminal condition
+        done_batch = 1.0 * (reward_batch <= env.envs[0].env.env.goal_size)# terminal condition
+        done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch)
+        reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward)) * (1.0 - collision_batch) \
+                        + (env.envs[0].env.collision_penalty) * collision_batch
 
         cost_batch = (- np.ones_like(done_batch) * 0)
         """
@@ -308,15 +303,6 @@ class SafetyRis(SAC):
                     if self._vec_normalize_env is not None:
                         next_obs[i] = self._vec_normalize_env.unnormalize_obs(next_obs[i, :])
 
-        #replay_buffer.add(
-        #    self._last_original_obs,
-        #    next_obs,
-        #    buffer_action,
-        #    reward_,
-        #    dones,
-        #    infos,
-        #)
-
         assert self.n_envs == 1
         self.path_builder.add_all(
             observations=self._last_original_obs,
@@ -360,28 +346,6 @@ class SafetyRis(SAC):
         self.subgoal_optimizer.zero_grad()
         subgoal_loss.backward()
         self.subgoal_optimizer.step()
-        #with th.no_grad():
-        #    subgoal_grad_norm = (
-        #    sum(p.grad.data.norm(2).item() ** 2 for p in self.subgoal_net.parameters() if p.grad is not None) ** 0.5
-        #    )
-		
-        """
-		# Log variables
-        if self.logger is not None:
-            self.logger.store(
-                #subgoal_grad_norm = subgoal_grad_norm,
-                subgoal_weight = weight.mean().item(),
-                subgoal_weight_max = weight.max().item(),
-                subgoal_weight_min = weight.min().item(),
-                log_prob_target_subgoal = log_prob.mean().item(),
-                adv = adv.mean().item(),
-                ratio_adv = adv.ge(0.0).float().mean().item(),
-                subgoal_loss = subgoal_loss.item(),
-                high_policy_v = policy_v.mean().item(),
-                high_v = v.mean().item(),
-                v1_v2_diff = policy_v_1.mean().item() - policy_v_2.mean().item(),
-            )
-        """
 
     def sample_action_and_KL(self, state, goal):
         batch_size = state.size(0)
@@ -425,9 +389,6 @@ class SafetyRis(SAC):
 
         for gradient_step in range(gradient_steps):
             # Sample replay buffer
-            #replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
-            # sample more states for subgoals
-            #subgoals_replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
             state, action, reward, cost, next_state, done, goal = self.sample_and_preprocess_batch(
                 self.custom_replay_buffer, 
                 env=self.env,
@@ -437,19 +398,6 @@ class SafetyRis(SAC):
             # Sample subgoal candidates uniformly in the replay buffer
             subgoal = th.FloatTensor(self.custom_replay_buffer.random_state_batch(batch_size)).to(self.device)
             
-            #state = replay_data.observations["observation"]
-            #goal = replay_data.observations["desired_goal"]
-            #action = replay_data.actions
-            #reward = replay_data.rewards
-            #next_state = replay_data.next_observations["observation"]
-            #done = replay_data.dones
-            #subgoal = subgoals_replay_data.observations["observation"]
-
-            # test HER buffer goal reach
-            #assert (np.sqrt((next_state - goal) ** 2) <  == done).all()
-            # test HER buffer collision
-
-
             """ Critic """
             # Compute target Q
             with th.no_grad():

@@ -124,10 +124,8 @@ class CustomActorCriticPolicy:
     ) -> Tuple[np.ndarray, Optional[Tuple[np.ndarray, ...]]]:
 		self.set_training_mode(False)
 
-		#observation, vectorized_env = self.obs_to_tensor(observation)
 		state = observation["observation"]
 		goal = observation["desired_goal"]
-		vectorized_env = True
 
 		with torch.no_grad():
 			actions = self.select_action(state, goal, deterministic=deterministic)

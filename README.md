@@ -76,6 +76,8 @@ cd /usr/home/workspace
 
 # run via Dockerfile
 ```commandline
+cd docker
+docker build -t ris_safety_gym_img .
 cd MFNLC
 docker run -it --gpus "device=0" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace ris_safety_gym_img
 cd /usr/home/workspace 
@@ -84,6 +86,12 @@ pip install -e .
 cd ..
 pip install -e .
 install mujoco (it wasnt installed in docker file dont know why)
+```
+
+# start existing docker
+```commandline
+docker exec -it gregory_SafetyRIS bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bin
 ```
 
 # changed to deps
