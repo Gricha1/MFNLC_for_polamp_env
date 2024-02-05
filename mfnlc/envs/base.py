@@ -303,6 +303,17 @@ class GCSafetyGymBase(SafetyGymBase):
         self.render_info = {}
         self.render_info["fig"] = None
         self.render_info["ax_states"] = None
+        # set difficulty level
+        level = 1
+        robot_name = "GC" + self.robot_name
+        difficulty_config = env_config[robot_name]["difficulty"][level]
+        floor_lb, floor_ub = np.array(difficulty_config[1], dtype=np.float32)
+        self.update_env_config({
+            "hazards_num": difficulty_config[0],
+            "placements_extents": np.concatenate([floor_lb, floor_ub]).tolist(),
+            "hazards_keepout": 0.45
+        })
+        print("dataset:", self.env.placements_extents)
 
     def _build_space(self):
         self.action_space = self.env.action_space
@@ -327,27 +338,6 @@ class GCSafetyGymBase(SafetyGymBase):
     
     #def compute_rewards(self, achieved_goal, desired_goal, info):
     def compute_rewards(self, new_actions, new_next_obs_dict):
-        """Compute the step reward. This externalizes the reward function and makes
-        it dependent on an a desired goal and the one that was achieved. If you wish to include
-        additional rewards that are independent of the goal, you can include the necessary values
-        to derive it in info and compute it accordingly.
-
-        Args:
-            achieved_goal (object): the goal that was achieved during execution
-            desired_goal (object): the desired goal that we asked the agent to attempt to achieve
-            info (dict): an info dictionary with additional information
-
-        Returns:
-            float: The reward that corresponds to the provided achieved goal w.r.t. to the desired
-            goal. Note that the following should always hold true:
-
-                ob, reward, done, info = env.step()
-                assert reward == env.compute_reward(ob['achieved_goal'], ob['goal'], info)
-        """
-        #reward = self.get_goal_reward() + collision * self.collision_penalty + arrive * self.arrive_reward
-        # input: batch_shape x state_shape
-        #collisions = np.array([float(el["collision"]) for el in info])
-        #return self.time_step_reward * np.ones_like(achieved_goal[:, 0]) + self.collision_penalty * collisions
         return self.time_step_reward * np.ones_like(new_actions[:, 0])
             
     def obstacle_goal_obs(self) -> np.ndarray:
