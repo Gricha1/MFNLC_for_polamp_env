@@ -300,6 +300,17 @@ class GCSafetyGymBase(SafetyGymBase):
         self.render_info = {}
         self.render_info["fig"] = None
         self.render_info["ax_states"] = None
+        # set difficulty level
+        level = 1.5
+        robot_name = "GC" + self.robot_name
+        difficulty_config = env_config[robot_name]["difficulty"][level]
+        floor_lb, floor_ub = np.array(difficulty_config[1], dtype=np.float32)
+        self.update_env_config({
+            "hazards_num": difficulty_config[0],
+            "placements_extents": np.concatenate([floor_lb, floor_ub]).tolist(),
+            "hazards_keepout": 0.45
+        })
+        print("dataset:", self.env.placements_extents)
 
     def _build_space(self):
         self.action_space = self.env.action_space
