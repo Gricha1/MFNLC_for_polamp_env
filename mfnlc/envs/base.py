@@ -182,10 +182,7 @@ class SafetyGymBase(EnvBase):
         return self.get_obs()
 
     def goal_obs(self) -> np.ndarray:
-        if self.subgoal is not None:
-            goal_obs = self.subgoal[:self.num_relevant_dim] - self.env.robot_pos[:self.num_relevant_dim]
-        else:
-            goal_obs = (self.env.goal_pos - self.env.robot_pos)[:self.num_relevant_dim]
+        goal_obs = (self.env.goal_pos - self.env.robot_pos)[:self.num_relevant_dim]
         return goal_obs
 
     def robot_obs(self) -> np.ndarray:
@@ -412,15 +409,17 @@ class GCSafetyGymBase(SafetyGymBase):
         flat_obs = np.zeros(self.robot_obs_size)
         offset = 0
 
-        #for k in sorted(self.env.obs_space_dict.keys()):
-        #    if "lidar" in k:
-        #        continue
-        #    k_size = np.prod(obs[k].shape)
-        #    if "accelerometer" in k:
-        #        copy_obs = copy.deepcopy(obs[k])
-        #        copy_obs[:2] = 0 # acc_x, acc_y = 0, 0
-        #        flat_obs[offset:offset + k_size] = copy_obs.flat
-        #    offset += k_size
+        for k in sorted(self.env.obs_space_dict.keys()):
+            if "lidar" in k:
+                continue
+            k_size = np.prod(obs[k].shape)
+            if not "accelerometer" in k:
+                continue
+            if "accelerometer" in k:
+                copy_obs = copy.deepcopy(obs[k])
+                copy_obs[:2] = 0 # acc_x, acc_y, acc_z = 0, 0, 9.81
+                flat_obs[offset:offset + k_size] = copy_obs.flat
+            offset += k_size
         return flat_obs
     
     def get_obs(self):
