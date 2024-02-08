@@ -100,7 +100,7 @@ class SafetyGymBase(EnvBase):
                                    for obs_name in self.env.obs_space_dict
                                    if 'lidar' not in obs_name])
 
-        self.obstacle_in_obs = 2
+        self.obstacle_in_obs = 8
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
 
         # Reward config
@@ -203,8 +203,8 @@ class SafetyGymBase(EnvBase):
         if self.no_obstacle:
             return np.array([])
 
-        # get distance to each obstacle upto self.obstacle_in_obs nearest obstacles
-        vec_to_obs = (self.env.hazards_pos - self.env.robot_pos)[:, :self.num_relevant_dim]
+         # get distance to each obstacle upto self.obstacle_in_obs nearest obstacles
+        vec_to_obs = (np.array(self.env.hazards_pos))[:, :self.num_relevant_dim]
         dist_to_obs = np.linalg.norm(vec_to_obs, ord=2, axis=-1)
         order = dist_to_obs.argsort()[:self.obstacle_in_obs]
         flattened_vec = vec_to_obs[order].flatten()
@@ -345,7 +345,7 @@ class GCSafetyGymBase(SafetyGymBase):
             return np.array([])
 
         # get distance to each obstacle upto self.obstacle_in_obs nearest obstacles
-        vec_to_obs = (self.env.hazards_pos - self.env.goal_pos)[:, :self.num_relevant_dim]
+        vec_to_obs = (np.array(self.env.hazards_pos))[:, :self.num_relevant_dim]
         dist_to_obs = np.linalg.norm(vec_to_obs, ord=2, axis=-1)
         order = dist_to_obs.argsort()[:self.obstacle_in_obs]
         flattened_vec = vec_to_obs[order].flatten()
@@ -381,6 +381,8 @@ class GCSafetyGymBase(SafetyGymBase):
 
         obs = self.get_obs()
         obs["collision"] = collision
+        if self.no_obstacle:
+            assert obs["collision"] == False
         #if arrive:
         #    # if the robot meets goal, the goal will be reset immediately
         #    # this can cause the goal observation has large jumps and affect Lyapunov function
