@@ -360,6 +360,11 @@ class GCSafetyGymBase(SafetyGymBase):
         self.subgoal_pos.append(subgoal_related_pos[0][0][1].item())
 
     def reset(self, **kwargs):
+        # check env config
+        if self.no_obstacle:
+            assert self.hazards_num == 0, "empty env has no obstacles"
+        else:
+            assert self.hazards_num > 0, "env with obstacles should have obstacles"
         self.subgoal_pos = None
         return super().reset(**kwargs)
     
@@ -369,6 +374,9 @@ class GCSafetyGymBase(SafetyGymBase):
         # As of now use safety gym info['cost'] to detect collisions
         collision = info.get('cost', 1.0) > 0
         info["collision"] = collision
+        # check env config
+        if self.no_obstacle:
+            assert collision == False
 
         arrive = info.get("goal_met", False)
 
