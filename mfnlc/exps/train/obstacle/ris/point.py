@@ -18,16 +18,17 @@ def learn():
           q_lr=1e-3, # RIS
           pi_lr=1e-4, # RIS
           epsilon=1e-16, # RIS
-          alpha=0.1, # RIS
-          Lambda=0.1, # RIS
-          n_ensemble=10, # RIS
+          alpha=0.05, # RIS
+          Lambda=0.05, # RIS
+          n_ensemble=20, # RIS
           clip_v_function=-150, # RIS,
           critic_max_grad_norm=6.0, # RIS
           actor_max_grad_norm=2.0, # RIS
           n_envs=1,
           batch_size=2048,
           log_interval=4,
-          validate_freq=10_000)
+          validate_freq=10_000,
+          use_wandb=True)
 
 
 def evaluate_controller():
