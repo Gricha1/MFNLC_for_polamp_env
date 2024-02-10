@@ -171,10 +171,16 @@ class SafetyRis(SAC):
         clearance_is_enough_batch = batch["clearance_is_enough"]
         collision_batch     = batch["collision"]       
         
+        # vel_pos = int(env.envs[0].env.obstacle_in_obs) * 2
+        # i_v = vel_pos + 1
+        # e_v = i_v + 2
         # Compute sparse rewards: -1 for all actions until the goal is reached
         reward_batch = np.sqrt(np.power(np.array(next_state_batch - goal_batch)[:, :2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
         done_batch   = 1.0 * (reward_batch <= env.envs[0].env.env.goal_size)# terminal condition
+        # done_batch   = 1.0 * (reward_batch <= env.envs[0].env.env.goal_size) + \
+        #     1.0 * (np.sqrt(np.power(np.array(next_state_batch)[:, -e_v:-i_v], 2).sum(-1, keepdims=True)) > 0.1)
         done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch)
+        # done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch // (1.0 + 1.0))
         reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward)) * (1.0 - collision_batch) \
                         + (env.envs[0].env.collision_penalty) * collision_batch
 
@@ -384,6 +390,7 @@ class SafetyRis(SAC):
         debug_info["Q"] = []
         debug_info["target_subgoal_V"] = []
         debug_info["subgoal_V"] = []
+        debug_info["target_Q"] = []
 
         for gradient_step in range(gradient_steps):
             state, action, reward, cost, next_state, done, goal = self.sample_and_preprocess_batch(
@@ -409,13 +416,14 @@ class SafetyRis(SAC):
             critic_loss = 0.5 * (Q - target_Q).pow(2).sum(-1).mean()
             critic_losses.append(critic_loss.item())
             debug_info["Q"].append(Q.mean().item())
+            debug_info["target_Q"].append(target_Q.mean().item())
 
             # Optimize the critic
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
-            if not(self.critic_max_grad_norm is None):
-                if self.critic_max_grad_norm > 0:
-                    th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.critic_max_grad_norm)
+            # if not(self.critic_max_grad_norm is None):
+            #     if self.critic_max_grad_norm > 0:
+            #         th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.critic_max_grad_norm)
             self.critic_optimizer.step()
                 
             # Optimize the subgoal policy
@@ -431,9 +439,9 @@ class SafetyRis(SAC):
             # Optimize the actor 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
-            if not(self.actor_max_grad_norm is None):
-                if self.actor_max_grad_norm > 0:
-                    th.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.actor_max_grad_norm)
+            # if not(self.actor_max_grad_norm is None):
+            #     if self.actor_max_grad_norm > 0:
+            #         th.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.actor_max_grad_norm)
             self.actor_optimizer.step()
 
             # Update target networks
@@ -447,7 +455,8 @@ class SafetyRis(SAC):
         self.logger.record("train/critic_loss", np.mean(critic_losses))
         self.logger.record("train/subgoal_net_loss", np.mean(debug_info["subgoal_net_losses"]))
         self.logger.record("train/adv", np.mean(debug_info["advs"]))        
-        self.logger.record("train/Q", np.mean(debug_info["Q"]))        
+        self.logger.record("train/Q", np.mean(debug_info["Q"])) 
+        self.logger.record("train/target_Q", np.mean(debug_info["target_Q"]))        
         self.logger.record("train/D_KL", D_KL.mean().item())
         self.logger.record("train/target_subgoal_V", np.mean(debug_info["target_subgoal_V"]))
         self.logger.record("train/subgoal_V", np.mean(debug_info["subgoal_V"]))
