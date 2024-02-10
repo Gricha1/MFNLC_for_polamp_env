@@ -7,6 +7,7 @@ import numpy as np
 import cv2
 #import safety_gym  # noqa
 from gym import Env, GoalEnv
+import math
 
 import matplotlib.pyplot as plt
 
@@ -100,7 +101,10 @@ class SafetyGymBase(EnvBase):
                                    for obs_name in self.env.obs_space_dict
                                    if 'lidar' not in obs_name])
 
-        self.obstacle_in_obs = 2
+        # self.obstacle_in_obs = sum([np.prod(self.env.obs_space_dict[obs_name].shape)
+        #                            for obs_name in self.env.obs_space_dict
+        #                            if 'hazards_lidar' in obs_name])
+        self.obstacle_in_obs = 8
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
 
         # Reward config
@@ -165,6 +169,7 @@ class SafetyGymBase(EnvBase):
         return self.env.hazards_pos
 
     def reset(self):
+        # resetting everything in base env (pay attention!)
         super(SafetyGymBase, self).reset()
         self.env.reset()
         self.env.num_steps = 10000
@@ -212,6 +217,8 @@ class SafetyGymBase(EnvBase):
         output = np.zeros(self.obstacle_in_obs * self.num_relevant_dim)
         output[:flattened_vec.shape[0]] = flattened_vec
         return output
+        # obs = self.env.obs()
+        # return obs["hazards_lidar"]
 
     def get_goal_reward(self):
         goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
@@ -321,6 +328,9 @@ class GCSafetyGymBase(SafetyGymBase):
                 (self.num_relevant_dim + self.robot_obs_size),
                 dtype=np.float32)
         else:
+            # observation_high = max_observation * np.ones(
+            #     (self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs),
+            #     dtype=np.float32)
             observation_high = max_observation * np.ones(
                 (self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs * self.num_relevant_dim),
                 dtype=np.float32)
@@ -352,7 +362,9 @@ class GCSafetyGymBase(SafetyGymBase):
         # in case of that the obstacle number in environment is smaller than self.obstacle_in_obs
         output = np.zeros(self.obstacle_in_obs * self.num_relevant_dim)
         output[:flattened_vec.shape[0]] = flattened_vec
-        return output
+        return output        
+        # obs = self.env.obs()
+        # return obs["goal_lidar"] 
     
     def set_subgoal_pos(self, subgoal_related_pos):
         self.subgoal_pos = []
@@ -459,18 +471,31 @@ class GCSafetyGymBase(SafetyGymBase):
             self.render_info["ax_states"].add_patch(circle_robot) 
             self.render_info["ax_states"].scatter(x, y, color="red")
             self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s")
+            # env_obs = self.env.obs()
+            # angle_space = np.linspace(0, 360, env_obs["hazards_lidar"].shape[0] + 1)[:-1]
+            # for distance, angle in zip(env_obs["hazards_lidar"], angle_space):
+            #     plt.plot([x, x + distance * math.cos(angle)],\
+            #             [y, y + distance * math.sin(angle)],\
+            #             '-', linewidth = 4, color='red')
+
             # subgoal
-            x = self.subgoal_pos[0]
-            y = self.subgoal_pos[1]
-            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="orange", alpha=0.5)
-            self.render_info["ax_states"].add_patch(circle_robot)
-            self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s_g")
+            if self.subgoal_pos is not None:
+                x = self.subgoal_pos[0]
+                y = self.subgoal_pos[1]
+                circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="orange", alpha=0.5)
+                self.render_info["ax_states"].add_patch(circle_robot)
+                self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s_g")
             # goal
             x = self.env.goal_pos[0]
             y = self.env.goal_pos[1]
             circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="y", alpha=0.5)
             self.render_info["ax_states"].add_patch(circle_robot) 
             self.render_info["ax_states"].text(x + 0.05, y + 0.05, "g")
+            # for distance, angle in zip(env_obs["goal_lidar"], angle_space):
+            #     plt.plot([x, x + distance * math.cos(angle)],\
+            #             [y, y + distance * math.sin(angle)],\
+            #             '-', linewidth = 4, color='blue')
+                
             # add obstacles
             obstacles = [plt.Circle(obs[:2], radius=self.obstacle_radius,  # noqa
                         color="b", alpha=0.5) for obs in self.env.hazards_pos]
@@ -490,6 +515,7 @@ class GCSafetyGymBase(SafetyGymBase):
                 self.render_info["ax_states"].text(env_max_x - 0.5, env_max_y - 0.3, f"t:{t}")
 
             # render img
+            # self.render_info["fig"].savefig("example.png")
             self.render_info["fig"].canvas.draw()
             data = np.frombuffer(self.render_info["fig"].canvas.tostring_rgb(), dtype=np.uint8)
             data = data.reshape(self.render_info["fig"].canvas.get_width_height()[::-1] + (3,))

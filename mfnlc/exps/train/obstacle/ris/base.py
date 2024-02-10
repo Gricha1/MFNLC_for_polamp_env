@@ -20,7 +20,7 @@ from mfnlc.envs import get_env, get_sub_proc_env
 from mfnlc.exps.train.utils import copy_current_model_to_log_dir
 from mfnlc.learn.safety_ris import SafetyRis
 from mfnlc.learn.subgoal import LaplacePolicy, EnsembleCritic, GaussianPolicy, CustomActorCriticPolicy
-
+# from mfnlc.envs.difficulty import choose_level
 
 def train(env_name,
           total_timesteps: int,
@@ -202,10 +202,11 @@ def train(env_name,
         assert 1 == 0
 
     # test eval env
+    # choose_level(callback_eval_env, 1)
     obs = callback_eval_env.reset()
     print("obs type:", type(obs))
     print("obs:", callback_eval_env.observation_space)
-    print("image shape:", callback_eval_env.custom_render().shape)
+    print("image shape:", callback_eval_env.custom_render(positions_render=True).shape)
 
     env_obs_dim = env.observation_space["observation"].shape[0]
     env_goal_dim = env.observation_space["desired_goal"].shape[0]
