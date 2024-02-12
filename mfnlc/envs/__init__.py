@@ -6,11 +6,10 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from mfnlc.config import env_config
 from .base import EnvBase
-from .car import CarNav
+from .car import CarNav, GCCarNav
 from .doggo import DoggoNav
 from .nav import Continuous2DNav
 from .point import PointNav, GCPointNav
-#from .polamp import PolampEnv
 
 
 def get_env(env_name: str):
@@ -48,6 +47,10 @@ def get_env(env_name: str):
     # goal conditioned envs
     elif env_name == "GCPoint":
         env = GCPointNav(end_on_collision=True, # True
+                         no_obstacle=False, # False
+                         max_episode_steps=env_config[robot_name]["max_step"])
+    elif env_name == "GCCar":
+        env = GCCarNav(end_on_collision=True, # True
                          no_obstacle=False, # False
                          max_episode_steps=env_config[robot_name]["max_step"])
     else:

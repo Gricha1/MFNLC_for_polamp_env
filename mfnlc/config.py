@@ -114,6 +114,25 @@ env_config = {
             3: [128, [[-8, -8], [8, 8]]]
         }
     },
+    "GCCar": {
+        "max_step": 1000,
+        "goal_dim": 2,
+        "state_dim": 0,
+        "robot_radius": 0.3,
+        "sink": None,
+        "env_prop": {
+            "vases_num": 0,
+            "render_lidar_markers": False,
+            'floor_display_mode': True
+        },
+        "difficulty": {
+            # number of obstacle | map size
+            0: [0, [[-2, -2], [2, 2]]],
+            1: [8, [[-2, -2], [2, 2]]],
+            2: [32, [[-4, -4], [4, 4]]],
+            3: [128, [[-8, -8], [8, 8]]]
+        }
+    },
 }
 
 
