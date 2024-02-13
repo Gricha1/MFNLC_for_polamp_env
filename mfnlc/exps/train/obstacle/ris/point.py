@@ -27,6 +27,7 @@ def learn():
           clip_v_function=-150,
           critic_max_grad_norm=None,
           actor_max_grad_norm=None, 
+          stop_train_critic_steps=800_000,
           # validation
           log_interval=4,
           validate_freq=10_000,

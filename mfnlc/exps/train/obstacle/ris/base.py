@@ -56,6 +56,7 @@ def train(env_name,
           clip_v_function = -150, # RIS,
           critic_max_grad_norm: float = None, # RIS
           actor_max_grad_norm: float = None, # RIS
+          stop_train_critic_steps: int = None, # RIS
           create_eval_env: bool = False,
           policy_to_delete_kwargs: Optional[Dict[str, Any]] = None,
           verbose: int = 1,
@@ -336,6 +337,7 @@ def train(env_name,
         epsilon,
         critic_max_grad_norm,
         actor_max_grad_norm,
+        stop_train_critic_steps,
         learning_rate, buffer_size, learning_starts, batch_size, tau, gamma,
         train_freq, gradient_steps, action_noise, 
         HerReplayBuffer, #replay_buffer_class

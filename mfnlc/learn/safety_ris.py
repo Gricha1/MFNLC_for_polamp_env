@@ -38,6 +38,7 @@ class SafetyRis(SAC):
         epsilon: float = 1e-16,
         critic_max_grad_norm: float = None,
         actor_max_grad_norm: float = None,
+        stop_train_critic_steps: int = None,
         learning_rate: Union[float, Schedule] = 3e-4,
         buffer_size: int = 1_000_000,  # 1e6
         learning_starts: int = 100,
@@ -116,6 +117,7 @@ class SafetyRis(SAC):
         self.epsilon = epsilon
         self.critic_max_grad_norm = critic_max_grad_norm
         self.actor_max_grad_norm = actor_max_grad_norm
+        self.stop_train_critic_steps = stop_train_critic_steps
 
         # path builder for HER
         vectorized = False
@@ -404,27 +406,33 @@ class SafetyRis(SAC):
             
 
             """ Critic """
-            # Compute target Q
-            with th.no_grad():
-                next_action, log_prob, _ = self.actor.sample(next_state, goal)
-                target_Q = self.critic_target(next_state, next_action, goal)
-                target_Q = th.min(target_Q, -1, keepdim=True)[0]
-                target_Q = reward + (1.0-done) * self.gamma*target_Q
+            if not(self.stop_train_critic_steps is None):
+                if self.num_timesteps < self.stop_train_critic_steps:
+                    # Compute target Q
+                    with th.no_grad():
+                        next_action, log_prob, _ = self.actor.sample(next_state, goal)
+                        target_Q = self.critic_target(next_state, next_action, goal)
+                        target_Q = th.min(target_Q, -1, keepdim=True)[0]
+                        target_Q = reward + (1.0-done) * self.gamma*target_Q
 
-            # Compute critic loss
-            Q = self.critic(state, action, goal)
-            critic_loss = 0.5 * (Q - target_Q).pow(2).sum(-1).mean()
-            critic_losses.append(critic_loss.item())
-            debug_info["Q"].append(Q.mean().item())
-            debug_info["target_Q"].append(target_Q.mean().item())
+                    # Compute critic loss
+                    Q = self.critic(state, action, goal)
+                    critic_loss = 0.5 * (Q - target_Q).pow(2).sum(-1).mean()
+                    critic_losses.append(critic_loss.item())
+                    debug_info["Q"].append(Q.mean().item())
+                    debug_info["target_Q"].append(target_Q.mean().item())
 
-            # Optimize the critic
-            self.critic_optimizer.zero_grad()
-            critic_loss.backward()
-            if not(self.critic_max_grad_norm is None):
-                if self.critic_max_grad_norm > 0:
-                    th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.critic_max_grad_norm)
-            self.critic_optimizer.step()
+                    # Optimize the critic
+                    self.critic_optimizer.zero_grad()
+                    critic_loss.backward()
+                    if not(self.critic_max_grad_norm is None):
+                        if self.critic_max_grad_norm > 0:
+                            th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.critic_max_grad_norm)
+                    self.critic_optimizer.step()
+                else:
+                    critic_losses.append(0)
+                    debug_info["Q"].append(0)
+                    debug_info["target_Q"].append(0)
                 
             # Optimize the subgoal policy
             self.train_highlevel_policy(state, goal, subgoal, debug_info) # test
