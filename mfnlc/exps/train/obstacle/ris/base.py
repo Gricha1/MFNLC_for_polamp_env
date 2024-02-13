@@ -20,7 +20,8 @@ from mfnlc.envs import get_env, get_sub_proc_env
 from mfnlc.exps.train.utils import copy_current_model_to_log_dir
 from mfnlc.learn.safety_ris import SafetyRis
 from mfnlc.learn.subgoal import LaplacePolicy, EnsembleCritic, GaussianPolicy, CustomActorCriticPolicy
-# from mfnlc.envs.difficulty import choose_level
+from mfnlc.config import env_config
+
 
 def train(env_name,
           total_timesteps: int,
@@ -71,7 +72,8 @@ def train(env_name,
           validate_freq: int = 5000,
           use_wandb = True,
           validate_robot_video=True,
-          validate_subgoal_video=True
+          validate_subgoal_video=True,
+          validate_test_episode=False,
           ):
     algo = "ris"
     if use_wandb:
@@ -94,7 +96,8 @@ def train(env_name,
     # add custom video callback
     class VideoRecorderCallback(WandbCallback):
         def __init__(self, 
-                    eval_env: gym.Env, 
+                    eval_env: gym.Env,
+                    test_env: gym.Env,
                     render_freq: int, 
                     n_eval_episodes: int = 1, 
                     deterministic: bool = True,
@@ -106,6 +109,8 @@ def train(env_name,
                              model_save_path=model_save_path,
                              verbose=verbose)
             self._eval_env = eval_env
+            if validate_test_episode:
+                self._test_env = test_env
             self._render_freq = render_freq
             self._n_eval_episodes = n_eval_episodes
             self._deterministic = deterministic
@@ -201,13 +206,82 @@ def train(env_name,
                 else:
                     success_rate = np.mean(self._is_success_buffer)
                     self.logger.record("eval/custom_success_rate", 0)
-            
+
+                if validate_test_episode:
+                    self._is_success_buffer = []
+                    self.collisions = []
+                    dubug_info = {"acc_reward" : 0, "t": 0, "acc_cost" : 0}
+                    if validate_robot_video:
+                        robot_screens = []
+                    if validate_subgoal_video:
+                        positions_screens = []
+                    episode_rewards, episode_lengths = evaluate_policy(
+                        self.model,
+                        self._test_env,
+                        callback=grab_screens,
+                        return_episode_rewards=True,
+                        n_eval_episodes=5,
+                        deterministic=self._deterministic,
+                    )
+                    if validate_robot_video:
+                        self.logger.record(
+                            "trajectory/test_video",
+                            Video(th.ByteTensor([robot_screens]), fps=40),
+                            exclude=("stdout", "log", "json", "csv"),
+                        )
+                    if validate_subgoal_video:
+                        self.logger.record(
+                            "trajectory/test_pos_video",
+                            Video(th.ByteTensor([positions_screens]), fps=40),
+                            exclude=("stdout", "log", "json", "csv"),
+                        )
+                    if validate_robot_video:
+                        del robot_screens
+                    if validate_subgoal_video:
+                        del positions_screens
+                    if len(self._is_success_buffer) > 0:
+                        success_rate = np.mean(self._is_success_buffer)
+                        self.logger.record("test/test_success_rate", success_rate)
+                    else:
+                        success_rate = np.mean(self._is_success_buffer)
+                        self.logger.record("test/test_success_rate", 0)
+                    mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
+                    min_reward, max_reward = np.min(episode_rewards), np.max(episode_rewards)
+                    mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
+                    collision_rate = np.mean(self.collisions)
+                    # Add to current Logger
+                    self.logger.record("test/test_reward", float(mean_reward))
+                    self.logger.record("test/test_ep_length", mean_ep_length)
+                    self.logger.record("test/test_reward_min", min_reward)
+                    self.logger.record("test/test_reward_max", max_reward)
+                    self.logger.record("test/test_collision_rate", collision_rate)
+
                 return True
             else:
                 return super()._on_step()
         
     if n_envs == 1:
         callback_eval_env = get_env(env_name)
+        callback_test_env = None
+        if validate_test_episode:
+            callback_test_env = get_env(env_name)
+            # set difficulty level
+            level = 1
+            robot_name = "GC" + callback_test_env.robot_name
+            difficulty_config = env_config[robot_name]["difficulty"][level]
+            floor_lb, floor_ub = np.array(difficulty_config[1], dtype=np.float32)
+            callback_test_env.update_env_config({
+                "hazards_num": difficulty_config[0],
+                "placements_extents": np.concatenate([floor_lb, floor_ub]).tolist(),
+                "hazards_keepout": 0.45
+            })
+            callback_test_env.fixed_init_and_goal = True
+            init = 0.9 * floor_lb
+            goal = np.array([0.9, 0.8]) * floor_ub
+            callback_test_env.update_env_config({
+                "robot_locations": [init.tolist()],
+                "goal_locations": [goal.tolist()]
+            })
     else:
         assert 1 == 0
 
@@ -227,11 +301,12 @@ def train(env_name,
     if use_wandb:
         run_id = run.id
         video_recorder = VideoRecorderCallback(callback_eval_env, 
-                                            n_eval_episodes=10, 
-                                            render_freq=validate_freq,
-                                            gradient_save_freq=0, # error if > 0 
-                                            model_save_path=f"models/{run_id}",
-                                            verbose=2)
+                                               callback_test_env,
+                                               n_eval_episodes=10, 
+                                               render_freq=validate_freq,
+                                               gradient_save_freq=0, # error if > 0 
+                                               model_save_path=f"models/{run_id}",
+                                               verbose=2)
 
     print("Ending")
     state_dim = env_obs_dim

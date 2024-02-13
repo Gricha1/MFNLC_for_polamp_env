@@ -12,20 +12,22 @@ def learn():
           action_noise=None,
           new_policy_kwargs={"net_arch": [256, 256]},
           policy_to_delete_kwargs={"net_arch": [100, 100]},
-          train_freq=(1, "episode"), #train_freq=(200, "step"),
-          gradient_steps=1, #gradient_steps=100,
-          h_lr=1e-4, # RIS
-          q_lr=1e-3, # RIS
-          pi_lr=1e-4, # RIS
-          epsilon=1e-16, # RIS
-          alpha=0.05, # RIS
-          Lambda=0.05, # RIS
-          n_ensemble=20, # RIS
-          clip_v_function=-150, # RIS,
-          critic_max_grad_norm=None, # RIS
-          actor_max_grad_norm=None, # RIS
+          train_freq=(1, "episode"),
           n_envs=1,
           batch_size=2048,
+          gradient_steps=1,
+          # RIS
+          h_lr=1e-4,
+          q_lr=1e-3,
+          pi_lr=1e-4,
+          epsilon=1e-16,
+          alpha=0.05,
+          Lambda=0.05,
+          n_ensemble=20,
+          clip_v_function=-150,
+          critic_max_grad_norm=None,
+          actor_max_grad_norm=None, 
+          # validation
           log_interval=4,
           validate_freq=10_000,
           use_wandb=True)

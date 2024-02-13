@@ -328,9 +328,6 @@ class GCSafetyGymBase(SafetyGymBase):
                 (self.num_relevant_dim + self.robot_obs_size),
                 dtype=np.float32)
         else:
-            # observation_high = max_observation * np.ones(
-            #     (self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs),
-            #     dtype=np.float32)
             observation_high = max_observation * np.ones(
                 (self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs * self.num_relevant_dim),
                 dtype=np.float32)
