@@ -28,7 +28,9 @@ def learn():
           n_envs=1,
           batch_size=4096,
           validate_freq=10_000,
-          use_wandb=True)
+          use_wandb=True,
+          validate_robot_video=False,
+          validate_subgoal_video=True)
 
 
 def evaluate_controller():

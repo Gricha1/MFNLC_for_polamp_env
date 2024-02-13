@@ -421,9 +421,9 @@ class SafetyRis(SAC):
             # Optimize the critic
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
-            # if not(self.critic_max_grad_norm is None):
-            #     if self.critic_max_grad_norm > 0:
-            #         th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.critic_max_grad_norm)
+            if not(self.critic_max_grad_norm is None):
+                if self.critic_max_grad_norm > 0:
+                    th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.critic_max_grad_norm)
             self.critic_optimizer.step()
                 
             # Optimize the subgoal policy
@@ -439,9 +439,9 @@ class SafetyRis(SAC):
             # Optimize the actor 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
-            # if not(self.actor_max_grad_norm is None):
-            #     if self.actor_max_grad_norm > 0:
-            #         th.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.actor_max_grad_norm)
+            if not(self.actor_max_grad_norm is None):
+                if self.actor_max_grad_norm > 0:
+                    th.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=self.actor_max_grad_norm)
             self.actor_optimizer.step()
 
             # Update target networks

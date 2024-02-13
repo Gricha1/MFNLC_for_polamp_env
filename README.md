@@ -86,6 +86,12 @@ pip install -e .
 install mujoco (it wasnt installed in docker file dont know why)
 ```
 
+# run docker
+```commandline
+docker exec -it gregory_SafetyRIS bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bin
+```
+
 # changed to deps
 you need Python 3.8.5
 

@@ -69,7 +69,9 @@ def train(env_name,
           reset_num_timesteps: bool = True,
           n_envs: int = 1,
           validate_freq: int = 5000,
-          use_wandb = True
+          use_wandb = True,
+          validate_robot_video=True,
+          validate_subgoal_video=True
           ):
     algo = "ris"
     if use_wandb:
@@ -111,8 +113,10 @@ def train(env_name,
 
         def _on_step(self) -> bool:
             if self.n_calls % self._render_freq == 0:
-                robot_screens = []
-                positions_screens = []
+                if validate_robot_video:
+                    robot_screens = []
+                if validate_subgoal_video:
+                    positions_screens = []
                 self._is_success_buffer = []
                 self.collisions = []
                 dubug_info = {"acc_reward" : 0, "t": 0, "acc_cost" : 0}
@@ -144,10 +148,12 @@ def train(env_name,
                         print("goal:", goal)
                     # get video
                     if _locals["episode_counts"][_locals["i"]] == 0:
-                        screen = self._eval_env.custom_render(positions_render=False)
-                        robot_screens.append(screen.transpose(2, 0, 1))
-                        screen = self._eval_env.custom_render(positions_render=True, dubug_info=dubug_info)
-                        positions_screens.append(screen.transpose(2, 0, 1))
+                        if validate_robot_video:
+                            screen = self._eval_env.custom_render(positions_render=False)
+                            robot_screens.append(screen.transpose(2, 0, 1))
+                        if validate_subgoal_video:
+                            screen = self._eval_env.custom_render(positions_render=True, dubug_info=dubug_info)
+                            positions_screens.append(screen.transpose(2, 0, 1))
                     # get success rate
                     if _locals["done"]:
                         maybe_is_success = _locals["info"].get("goal_is_arrived")
@@ -162,18 +168,22 @@ def train(env_name,
                     n_eval_episodes=self._n_eval_episodes,
                     deterministic=self._deterministic,
                 )
-                self.logger.record(
-                    "trajectory/video",
-                    Video(th.ByteTensor([robot_screens]), fps=40),
-                    exclude=("stdout", "log", "json", "csv"),
-                )
-                self.logger.record(
-                    "trajectory/pos_video",
-                    Video(th.ByteTensor([positions_screens]), fps=40),
-                    exclude=("stdout", "log", "json", "csv"),
-                )
-                del robot_screens
-                del positions_screens
+                if validate_robot_video:
+                    self.logger.record(
+                        "trajectory/video",
+                        Video(th.ByteTensor([robot_screens]), fps=40),
+                        exclude=("stdout", "log", "json", "csv"),
+                    )
+                if validate_subgoal_video:
+                    self.logger.record(
+                        "trajectory/pos_video",
+                        Video(th.ByteTensor([positions_screens]), fps=40),
+                        exclude=("stdout", "log", "json", "csv"),
+                    )
+                if validate_robot_video:
+                    del robot_screens
+                if validate_subgoal_video:
+                    del positions_screens
 
                 mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
                 min_reward, max_reward = np.min(episode_rewards), np.max(episode_rewards)
