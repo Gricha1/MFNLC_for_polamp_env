@@ -308,7 +308,7 @@ class GCSafetyGymBase(SafetyGymBase):
         self.render_info["fig"] = None
         self.render_info["ax_states"] = None
         # set difficulty level
-        level = 1
+        level = 0
         robot_name = "GC" + self.robot_name
         difficulty_config = env_config[robot_name]["difficulty"][level]
         floor_lb, floor_ub = np.array(difficulty_config[1], dtype=np.float32)

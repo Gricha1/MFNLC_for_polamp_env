@@ -46,8 +46,8 @@ def get_env(env_name: str):
         env = DoggoNav(end_on_collision=True)
     # goal conditioned envs
     elif env_name == "GCPoint":
-        env = GCPointNav(end_on_collision=True, # True
-                         no_obstacle=False, # False
+        env = GCPointNav(end_on_collision=False, # True
+                         no_obstacle=True, # False
                          max_episode_steps=env_config[robot_name]["max_step"])
     elif env_name == "GCCar":
         env = GCCarNav(end_on_collision=True, # True

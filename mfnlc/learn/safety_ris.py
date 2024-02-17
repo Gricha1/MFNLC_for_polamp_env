@@ -335,7 +335,7 @@ class SafetyRis(SAC):
             # Compute subgoal distance loss
             v_1 = self.value(state, subgoal)
             v_2 = self.value(subgoal, goal)
-            v = th.cat([v_1, v_2], -1).clamp(min=self.clip_v_function, max=0.0).abs().max(-1)[0]
+            v = th.cat([v_1, v_2], -1).clamp(min=-150, max=0.0).abs().max(-1)[0]
             adv = - (v - policy_v)
             weight = F.softmax(adv/self.Lambda, dim=0)
 

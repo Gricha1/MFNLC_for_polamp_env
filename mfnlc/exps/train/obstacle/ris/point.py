@@ -24,7 +24,7 @@ def learn():
           alpha=0.05,
           Lambda=0.05,
           n_ensemble=20,
-          clip_v_function=-150,
+          clip_v_function=-70,
           critic_max_grad_norm=None,
           actor_max_grad_norm=None, 
           # validation
