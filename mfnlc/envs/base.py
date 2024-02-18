@@ -12,6 +12,7 @@ import math
 import matplotlib.pyplot as plt
 
 from mfnlc.config import env_config
+from collections import deque
 
 
 class EnvBase(Env):
@@ -104,9 +105,9 @@ class SafetyGymBase(EnvBase):
         # self.obstacle_in_obs = sum([np.prod(self.env.obs_space_dict[obs_name].shape)
         #                            for obs_name in self.env.obs_space_dict
         #                            if 'hazards_lidar' in obs_name])
-        self.obstacle_in_obs = 8
+        self.obstacle_in_obs = 4
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
-
+        self.frame_stack = 2
         # Reward config
         self.collision_penalty = -0.01
         self.arrive_reward = 20
@@ -317,6 +318,11 @@ class GCSafetyGymBase(SafetyGymBase):
             "placements_extents": np.concatenate([floor_lb, floor_ub]).tolist(),
             "hazards_keepout": 0.45
         })
+        self.obstacle_in_obs = 4
+        self.frame_stack = 2
+        self.state_history = deque([])
+        self.goal_history = deque([])
+        self.history_len = self.frame_stack
         print("dataset:", self.env.placements_extents)
 
     def _build_space(self):
@@ -325,14 +331,14 @@ class GCSafetyGymBase(SafetyGymBase):
         max_observation = 10
         if self.no_obstacle:
             observation_high = max_observation * np.ones(
-                (self.num_relevant_dim + self.robot_obs_size),
+                ((self.num_relevant_dim + self.robot_obs_size) * self.frame_stack),
                 dtype=np.float32)
         else:
             # observation_high = max_observation * np.ones(
             #     (self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs),
             #     dtype=np.float32)
             observation_high = max_observation * np.ones(
-                (self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs * self.num_relevant_dim),
+                ((self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs * self.num_relevant_dim) * self.frame_stack),
                 dtype=np.float32)
         observation_low = -observation_high
         self.observation_space = gym.spaces.Dict({
@@ -373,6 +379,8 @@ class GCSafetyGymBase(SafetyGymBase):
 
     def reset(self, **kwargs):
         # check env config
+        self.state_history.clear()
+        self.goal_history.clear()
         if self.no_obstacle:
             assert self.hazards_num == 0, "empty env has no obstacles"
         else:
@@ -443,6 +451,11 @@ class GCSafetyGymBase(SafetyGymBase):
         return flat_obs
     
     def get_obs(self):
+        if len(self.state_history) >= self.history_len:
+            self.state_history.popleft()
+        if len(self.goal_history) >= self.history_len:
+            self.goal_history.popleft()
+
         state = np.concatenate([
                                self.env.robot_pos[:self.num_relevant_dim],
                                self.robot_obs(), # absolute robot acc, velocities
@@ -453,12 +466,19 @@ class GCSafetyGymBase(SafetyGymBase):
                                self.robot_goal_obs(), # absolute goal acc, velocities
                                self.obstacle_goal_obs() # obsts with respect to goal
                                ])
+        
+        while len(self.state_history) < self.history_len:
+            self.state_history.append(state)
+        
+        while len(self.goal_history) < self.history_len:
+            self.goal_history.append(goal)
+        
         collision = False
         clearance_is_enough = False
         return {
-            "observation": state,
-            "desired_goal": goal,
-            "achieved_goal": state,
+            "observation": np.concatenate(self.state_history),
+            "desired_goal": np.concatenate(self.goal_history),
+            "achieved_goal": np.concatenate(self.state_history),
             "collision" : collision,
             "clearance_is_enough": clearance_is_enough,
         }
