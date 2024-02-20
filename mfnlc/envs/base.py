@@ -401,10 +401,17 @@ class GCSafetyGymBase(SafetyGymBase):
 
         obs = self.get_obs()
         obs["collision"] = collision
-        #if arrive:
-        #    # if the robot meets goal, the goal will be reset immediately
-        #    # this can cause the goal observation has large jumps and affect Lyapunov function
-        #    obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
+        if arrive:
+            # if the robot meets goal, the goal will be reset immediately
+            # this can cause the goal observation has large jumps and affect Lyapunov function
+            #obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
+            obs["desired_goal"][:self.num_relevant_dim] = obs["observation"][:self.num_relevant_dim]
+
+        # test
+        test_reward = np.sqrt(np.power(np.array(obs["observation"] - obs["desired_goal"])[:2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
+        test_arrive = 1.0 * (test_reward <= self.env.goal_size)# terminal condition
+        if not arrive == test_arrive:
+            assert 1 == 0
 
         self.traj.append(self.robot_pos)
 
