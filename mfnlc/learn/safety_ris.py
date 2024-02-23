@@ -133,7 +133,8 @@ class SafetyRis(SAC):
             achieved_goal_key   = 'achieved_goal',
             vectorized          = vectorized 
         )
-
+        self.sac = False
+        self.sac_alpha = 0.2
         if _init_setup_model:
             self._setup_model()
 
@@ -406,8 +407,10 @@ class SafetyRis(SAC):
             """ Critic """
             # Compute target Q
             with th.no_grad():
-                next_action, log_prob, _ = self.actor.sample(next_state, goal)
+                next_action, next_log_prob, _ = self.actor.sample(next_state, goal)
                 target_Q = self.critic_target(next_state, next_action, goal)
+                if self.sac:
+                    target_Q -= self.sac_alpha * next_log_prob
                 target_Q = th.min(target_Q, -1, keepdim=True)[0]
                 target_Q = reward + (1.0-done) * self.gamma*target_Q
 
@@ -427,14 +430,22 @@ class SafetyRis(SAC):
             self.critic_optimizer.step()
                 
             # Optimize the subgoal policy
-            self.train_highlevel_policy(state, goal, subgoal, debug_info) # test
+            if not self.sac:
+                self.train_highlevel_policy(state, goal, subgoal, debug_info) # test
             
             """ Actor """
-            action, D_KL = self.sample_action_and_KL(state, goal)
+            if self.sac:
+                action, log_prob, _ = self.actor.sample(state, goal)
+            else:
+                action, D_KL = self.sample_action_and_KL(state, goal)                
             # Compute actor loss
             Q = self.critic(state, action, goal)
             Q = th.min(Q, -1, keepdim=True)[0]
-            actor_loss = (self.alpha*D_KL - Q).mean()
+            
+            if self.sac:
+                actor_loss = (self.sac_alpha * log_prob - Q).mean()
+            else:
+                actor_loss = (self.alpha*D_KL - Q).mean()
             actor_losses.append(actor_loss.item())
             # Optimize the actor 
             self.actor_optimizer.zero_grad()
@@ -452,14 +463,15 @@ class SafetyRis(SAC):
 
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/actor_loss", np.mean(actor_losses))
-        self.logger.record("train/critic_loss", np.mean(critic_losses))
-        self.logger.record("train/subgoal_net_loss", np.mean(debug_info["subgoal_net_losses"]))
-        self.logger.record("train/adv", np.mean(debug_info["advs"]))        
+        self.logger.record("train/critic_loss", np.mean(critic_losses))        
         self.logger.record("train/Q", np.mean(debug_info["Q"])) 
-        self.logger.record("train/target_Q", np.mean(debug_info["target_Q"]))        
-        self.logger.record("train/D_KL", D_KL.mean().item())
-        self.logger.record("train/target_subgoal_V", np.mean(debug_info["target_subgoal_V"]))
-        self.logger.record("train/subgoal_V", np.mean(debug_info["subgoal_V"]))
+        self.logger.record("train/target_Q", np.mean(debug_info["target_Q"]))
+        if not self.sac:      
+            self.logger.record("train/subgoal_net_loss", np.mean(debug_info["subgoal_net_losses"]))
+            self.logger.record("train/adv", np.mean(debug_info["advs"]))
+            self.logger.record("train/D_KL", D_KL.mean().item())
+            self.logger.record("train/target_subgoal_V", np.mean(debug_info["target_subgoal_V"]))
+            self.logger.record("train/subgoal_V", np.mean(debug_info["subgoal_V"]))
 
     def _excluded_save_params(self) -> List[str]:
         return super(SafetyRis, self)._excluded_save_params() + ["actor", "critic", "critic_target"]
