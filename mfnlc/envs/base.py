@@ -524,7 +524,7 @@ class GCSafetyGymBase(SafetyGymBase):
                 t = dubug_info["t"]
                 acc_cost = dubug_info["acc_cost"]
                 self.render_info["ax_states"].text(env_max_x - 4.5, env_max_y - 0.3, f"a0:{int(a0*100)/100}")
-                self.render_info["ax_states"].text(env_max_x - 3.5, env_max_y - 0.3, f"a1:{int(a0*100)/100}")
+                self.render_info["ax_states"].text(env_max_x - 3.5, env_max_y - 0.3, f"a1:{int(a1*100)/100}")
                 self.render_info["ax_states"].text(env_max_x - 2.5, env_max_y - 0.3, f"R:{int(acc_reward*10)/10}")
                 self.render_info["ax_states"].text(env_max_x - 1.5, env_max_y - 0.3, f"C:{int(acc_cost*10)/10}")
                 self.render_info["ax_states"].text(env_max_x - 0.5, env_max_y - 0.3, f"t:{t}")
