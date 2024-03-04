@@ -70,13 +70,14 @@ One can start tracing code from `exps` folder.
 
 # docker
 ```commandline
+cd MFNLC_for_polamp_env
 docker run -it --gpus "device=0" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace continuumio/miniconda3 /bin/bash -c "conda install python=3.8.5 -y && bash" 
 cd /usr/home/workspace
 ```
 
 # run via Dockerfile
 ```commandline
-cd MFNLC
+cd MFNLC_for_polamp_env
 docker run -it --gpus "device=0" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace ris_safety_gym_img
 cd /usr/home/workspace 
 cd safety-gym
@@ -89,6 +90,7 @@ install mujoco (it wasnt installed in docker file dont know why)
 # run docker
 ```commandline
 docker exec -it gregory_SafetyRIS bash
+cd /usr/home/workspace
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bin
 ```
 
@@ -117,11 +119,10 @@ apt-get install -y \
     libosmesa6-dev \
     software-properties-common \
     patchelf
-pip install onnxruntime
-pip install free-mujoco-py
+pip install onnxruntime free-mujoco-py
 
 ```commandline
-cd MFNLC
+cd MFNLC_for_polamp_env
 pip install -e .
       if error with gym install: 
             """
@@ -136,7 +137,7 @@ pip install -e .
 
 4. Install Mujoco for mujoco_py lib (Linux)
 ```commandline
-apt-get install build-essential
+apt-get install build-essential --yes
 cd /root
 mkdir .mujoco
 wget https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz
