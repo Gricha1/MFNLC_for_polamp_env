@@ -140,7 +140,8 @@ class SafetyGymBase(EnvBase):
     def update_env_config(self, config: Dict):
         self.__dict__.update(config)  # Lazy implementation: can introduce unnecessary binding
         self.env.__dict__.update(config)
-
+        self.env.parse(config, update=True)        
+        
         assert "robot_base" not in config.keys(), \
             "Do not change robot, this requires to rebuild observation and action space"
         self.env.build_placements_dict()
@@ -312,12 +313,25 @@ class GCSafetyGymBase(SafetyGymBase):
         robot_name = "GC" + self.robot_name
         difficulty_config = env_config[robot_name]["difficulty"][level]
         floor_lb, floor_ub = np.array(difficulty_config[1], dtype=np.float32)
+        fixed_hazards = env_config[robot_name]["fixed_hazards"]
+        hazards_placements = None
+        if fixed_hazards:
+            if level != 1:
+                assert 1 == 0, "didnt implemented"
+            hazards_locations = env_config[robot_name]["fixed_hazard_poses"][level]
+        else:
+            hazards_locations = []
         self.update_env_config({
             "hazards_num": difficulty_config[0],
             "placements_extents": np.concatenate([floor_lb, floor_ub]).tolist(),
-            "hazards_keepout": 0.45
+            "hazards_keepout": 0.45,
+            "hazards_placements": hazards_placements,
+            'hazards_locations': hazards_locations,
+            "_seed": 42,
         })
         print("dataset:", self.env.placements_extents)
+        print("hazards_num:", self.env.hazards_num)
+        print("placements:", self.env.placements)
 
     def _build_space(self):
         self.action_space = self.env.action_space
@@ -377,8 +391,11 @@ class GCSafetyGymBase(SafetyGymBase):
             assert self.hazards_num == 0, "empty env has no obstacles"
         else:
             assert self.hazards_num > 0, "env with obstacles should have obstacles"
+        
         self.subgoal_pos = None
-        return super().reset(**kwargs)
+        obs = super().reset(**kwargs)
+        assert not obs["collision"], "initial state in collision!!!"
+        return obs
     
     def step(self, action: np.ndarray):
         s, r, done, info = self.env.step(action)
