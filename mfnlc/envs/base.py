@@ -141,7 +141,8 @@ class SafetyGymBase(EnvBase):
     def update_env_config(self, config: Dict):
         self.__dict__.update(config)  # Lazy implementation: can introduce unnecessary binding
         self.env.__dict__.update(config)
-
+        self.env.parse(config, update=True)        
+        
         assert "robot_base" not in config.keys(), \
             "Do not change robot, this requires to rebuild observation and action space"
         self.env.build_placements_dict()
@@ -313,10 +314,21 @@ class GCSafetyGymBase(SafetyGymBase):
         robot_name = "GC" + self.robot_name
         difficulty_config = env_config[robot_name]["difficulty"][level]
         floor_lb, floor_ub = np.array(difficulty_config[1], dtype=np.float32)
+        fixed_hazards = env_config[robot_name]["fixed_hazards"]
+        hazards_placements = None
+        if fixed_hazards:
+            if level != 1:
+                assert 1 == 0, "didnt implemented"
+            hazards_locations = env_config[robot_name]["fixed_hazard_poses"][level]
+        else:
+            hazards_locations = []
         self.update_env_config({
             "hazards_num": difficulty_config[0],
             "placements_extents": np.concatenate([floor_lb, floor_ub]).tolist(),
-            "hazards_keepout": 0.45
+            "hazards_keepout": 0.45,
+            "hazards_placements": hazards_placements,
+            'hazards_locations': hazards_locations,
+            "_seed": 42,
         })
         self.obstacle_in_obs = 4
         self.frame_stack = 2
@@ -324,6 +336,8 @@ class GCSafetyGymBase(SafetyGymBase):
         self.goal_history = deque([])
         self.history_len = self.frame_stack
         print("dataset:", self.env.placements_extents)
+        print("hazards_num:", self.env.hazards_num)
+        print("placements:", self.env.placements)
 
     def _build_space(self):
         self.action_space = self.env.action_space
@@ -385,8 +399,11 @@ class GCSafetyGymBase(SafetyGymBase):
             assert self.hazards_num == 0, "empty env has no obstacles"
         else:
             assert self.hazards_num > 0, "env with obstacles should have obstacles"
+        
         self.subgoal_pos = None
-        return super().reset(**kwargs)
+        obs = super().reset(**kwargs)
+        assert not obs["collision"], "initial state in collision!!!"
+        return obs
     
     def step(self, action: np.ndarray):
         s, r, done, info = self.env.step(action)
@@ -409,10 +426,17 @@ class GCSafetyGymBase(SafetyGymBase):
 
         obs = self.get_obs()
         obs["collision"] = collision
-        #if arrive:
-        #    # if the robot meets goal, the goal will be reset immediately
-        #    # this can cause the goal observation has large jumps and affect Lyapunov function
-        #    obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
+        if arrive:
+            # if the robot meets goal, the goal will be reset immediately
+            # this can cause the goal observation has large jumps and affect Lyapunov function
+            #obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
+            obs["desired_goal"][:self.num_relevant_dim] = obs["observation"][:self.num_relevant_dim]
+
+        # test
+        test_reward = np.sqrt(np.power(np.array(obs["observation"] - obs["desired_goal"])[:2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
+        test_arrive = 1.0 * (test_reward <= self.env.goal_size)# terminal condition
+        if not arrive == test_arrive:
+            assert 1 == 0
 
         self.traj.append(self.robot_pos)
 
@@ -537,7 +561,7 @@ class GCSafetyGymBase(SafetyGymBase):
                 t = dubug_info["t"]
                 acc_cost = dubug_info["acc_cost"]
                 self.render_info["ax_states"].text(env_max_x - 4.5, env_max_y - 0.3, f"a0:{int(a0*100)/100}")
-                self.render_info["ax_states"].text(env_max_x - 3.5, env_max_y - 0.3, f"a1:{int(a0*100)/100}")
+                self.render_info["ax_states"].text(env_max_x - 3.5, env_max_y - 0.3, f"a1:{int(a1*100)/100}")
                 self.render_info["ax_states"].text(env_max_x - 2.5, env_max_y - 0.3, f"R:{int(acc_reward*10)/10}")
                 self.render_info["ax_states"].text(env_max_x - 1.5, env_max_y - 0.3, f"C:{int(acc_cost*10)/10}")
                 self.render_info["ax_states"].text(env_max_x - 0.5, env_max_y - 0.3, f"t:{t}")

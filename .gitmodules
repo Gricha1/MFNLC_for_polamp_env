@@ -1,0 +1,3 @@
+[submodule "safety-gym"]
+	path = safety-gym
+	url = https://github.com/Gricha1/safety_gym_featched.git
