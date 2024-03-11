@@ -303,7 +303,7 @@ class GCSafetyGymBase(SafetyGymBase):
                 self.max_episode_steps = max_episode_steps
         self.spec = EnvSpec()
         # Reward config
-        self.collision_penalty = -100
+        self.collision_penalty = -80
         self.arrive_reward = 0
         self.time_step_reward = -1
         self.subgoal_pos = None
