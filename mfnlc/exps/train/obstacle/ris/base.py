@@ -70,7 +70,7 @@ def train(env_name,
           n_envs: int = 1,
           validate_freq: int = 5000,
           use_wandb = True,
-          validate_robot_video=True,
+          validate_robot_video=False,
           validate_subgoal_video=True
           ):
     algo = "ris"
