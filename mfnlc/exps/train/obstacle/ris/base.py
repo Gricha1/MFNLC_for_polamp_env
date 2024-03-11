@@ -110,6 +110,7 @@ def train(env_name,
             self._n_eval_episodes = n_eval_episodes
             self._deterministic = deterministic
             self._is_success_buffer = []
+            self.old_success_rate = None
 
         def _on_step(self) -> bool:
             if self.n_calls % self._render_freq == 0:
@@ -201,6 +202,25 @@ def train(env_name,
                 else:
                     success_rate = np.mean(self._is_success_buffer)
                     self.logger.record("eval/custom_success_rate", 0)
+
+                # Save (current) results
+                hyperparams_tune = False
+                folder = self.model_save_path + "/" + "last_"
+                if not os.path.exists(folder):
+                    os.makedirs(folder)
+                if not hyperparams_tune:
+                    self.model.save(folder)
+                # Save (best) results
+                if self.old_success_rate is None or success_rate >= self.old_success_rate:
+                    self.old_success_rate = success_rate
+                    #save_policy_count += 1
+                    folder = self.model_save_path + "/" + "best_"
+                    if not os.path.exists(folder):
+                        os.makedirs(folder)
+                    if not hyperparams_tune:
+                        self.model.save(folder)
+                    #if args.using_wandb:
+                    #    wandb.log({"save_policy_count": save_policy_count})
             
                 return True
             else:
@@ -212,7 +232,6 @@ def train(env_name,
         assert 1 == 0
 
     # test eval env
-    # choose_level(callback_eval_env, 1)
     obs = callback_eval_env.reset()
     print("obs type:", type(obs))
     print("obs:", callback_eval_env.observation_space)
@@ -232,7 +251,8 @@ def train(env_name,
                                             gradient_save_freq=0, # error if > 0 
                                             model_save_path=f"models/{run_id}",
                                             verbose=2)
-
+        wandb.config["model_save_path"] = video_recorder.model_save_path
+        
     print("Ending")
     state_dim = env_obs_dim
     goal_dim = env_goal_dim
