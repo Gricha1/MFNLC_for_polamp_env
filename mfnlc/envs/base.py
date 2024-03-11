@@ -107,7 +107,7 @@ class SafetyGymBase(EnvBase):
         #                            if 'hazards_lidar' in obs_name])
         self.obstacle_in_obs = 4
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
-        self.frame_stack = 2
+        self.frame_stack = 3
         # Reward config
         self.collision_penalty = -0.01
         self.arrive_reward = 20
@@ -186,7 +186,7 @@ class SafetyGymBase(EnvBase):
 
         self.previous_goal_dist = None
 
-        return self.get_obs()
+        return self.get_obs(False)
 
     def goal_obs(self) -> np.ndarray:
         goal_obs = (self.env.goal_pos - self.env.robot_pos)[:self.num_relevant_dim]
@@ -218,6 +218,7 @@ class SafetyGymBase(EnvBase):
         # in case of that the obstacle number in environment is smaller than self.obstacle_in_obs
         output = np.zeros(self.obstacle_in_obs * self.num_relevant_dim)
         output[:flattened_vec.shape[0]] = flattened_vec
+        self.obstacle_observation = output
         return output
         # obs = self.env.obs()
         # return obs["hazards_lidar"]
@@ -306,6 +307,8 @@ class GCSafetyGymBase(SafetyGymBase):
         self.arrive_reward = 0
         self.time_step_reward = -1
         self.subgoal_pos = None
+        self.obstacle_observation = None
+        self.obstacle_goal_observation = None
         self.render_info = {}
         self.render_info["fig"] = None
         self.render_info["ax_states"] = None
@@ -331,7 +334,7 @@ class GCSafetyGymBase(SafetyGymBase):
             "_seed": 42,
         })
         self.obstacle_in_obs = 4
-        self.frame_stack = 2
+        self.frame_stack = 3
         self.state_history = deque([])
         self.goal_history = deque([])
         self.history_len = self.frame_stack
@@ -382,14 +385,16 @@ class GCSafetyGymBase(SafetyGymBase):
         # in case of that the obstacle number in environment is smaller than self.obstacle_in_obs
         output = np.zeros(self.obstacle_in_obs * self.num_relevant_dim)
         output[:flattened_vec.shape[0]] = flattened_vec
+        self.obstacle_goal_observation = output
         return output        
         # obs = self.env.obs()
         # return obs["goal_lidar"] 
     
     def set_subgoal_pos(self, subgoal_related_pos):
         self.subgoal_pos = []
-        self.subgoal_pos.append(subgoal_related_pos[0][0][0].item())
-        self.subgoal_pos.append(subgoal_related_pos[0][0][1].item())
+        shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
+        self.subgoal_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())
+        self.subgoal_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
 
     def reset(self, **kwargs):
         # check env config
@@ -417,6 +422,10 @@ class GCSafetyGymBase(SafetyGymBase):
 
         arrive = info.get("goal_met", False)
 
+        if self.env.robot_pos[0] < -2.0 or self.env.robot_pos[0] > 2.0 or \
+            self.env.robot_pos[1] < -2.0 or self.env.robot_pos[1] > 2.0:
+            collision = True
+
         reward = self.time_step_reward + self.collision_penalty * collision
 
         if self.end_on_collision and collision:
@@ -424,16 +433,17 @@ class GCSafetyGymBase(SafetyGymBase):
         else:
             done = arrive or done
 
-        obs = self.get_obs()
+        obs = self.get_obs(arrive)
         obs["collision"] = collision
-        if arrive:
-            # if the robot meets goal, the goal will be reset immediately
-            # this can cause the goal observation has large jumps and affect Lyapunov function
-            #obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
-            obs["desired_goal"][:self.num_relevant_dim] = obs["observation"][:self.num_relevant_dim]
+        # if arrive:
+        #     # if the robot meets goal, the goal will be reset immediately
+        #     # this can cause the goal observation has large jumps and affect Lyapunov function
+        #     #obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
+        #     obs["desired_goal"][:self.num_relevant_dim] = obs["observation"][:self.num_relevant_dim]
 
         # test
-        test_reward = np.sqrt(np.power(np.array(obs["observation"] - obs["desired_goal"])[:2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
+        shift_v = int(obs["observation"].shape[0] / self.frame_stack * (self.frame_stack - 1))
+        test_reward = np.sqrt(np.power(np.array(obs["observation"] - obs["desired_goal"])[shift_v : shift_v+2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
         test_arrive = 1.0 * (test_reward <= self.env.goal_size)# terminal condition
         if not arrive == test_arrive:
             assert 1 == 0
@@ -474,11 +484,21 @@ class GCSafetyGymBase(SafetyGymBase):
             offset += k_size
         return flat_obs
     
-    def get_obs(self):
+    def get_obs(self, arrive):
         if len(self.state_history) >= self.history_len:
             self.state_history.popleft()
         if len(self.goal_history) >= self.history_len:
-            self.goal_history.popleft()
+            # if the robot meets goal, the goal will be reset immediately
+            # this can cause the goal observation has large jumps and affect Lyapunov function
+            if not arrive:
+                self.goal_history.popleft()
+            else:
+                print("we should not remove anything because the goal was changed")
+                print(f"current goal: {self.env.goal_pos[:self.num_relevant_dim]}")
+                print(f"old goal: {self.goal_history[0][:self.num_relevant_dim]}")
+                print(f"current pose: {self.env.robot_pos[:self.num_relevant_dim]}")
+                distance = np.sqrt(np.power(np.array(self.env.robot_pos[:self.num_relevant_dim]) - np.array(self.goal_history[0][:self.num_relevant_dim]), 2).sum(-1, keepdims=True))
+                print(f"distance: {distance} and threshold: {self.env.goal_size}")
 
         state = np.concatenate([
                                self.env.robot_pos[:self.num_relevant_dim],
@@ -553,6 +573,20 @@ class GCSafetyGymBase(SafetyGymBase):
                         color="b", alpha=0.5) for obs in self.env.hazards_pos]
             for obs in obstacles:
                 self.render_info["ax_states"].add_patch(obs)
+            x = self.env.robot_pos[0]
+            y = self.env.robot_pos[1]
+            self.obstacle_observation = np.reshape(self.obstacle_observation, (int(self.obstacle_observation.shape[0]/ 2), 2))
+            for obs_coord in self.obstacle_observation:
+                plt.plot([x, x + obs_coord[0]],\
+                        [y, y + obs_coord[1]],\
+                        '-', linewidth = 4, color='red')
+            x = self.env.goal_pos[0]
+            y = self.env.goal_pos[1]
+            self.obstacle_goal_observation = np.reshape(self.obstacle_goal_observation, (int(self.obstacle_goal_observation.shape[0]/ 2), 2))
+            for obs_coord in self.obstacle_goal_observation:
+                plt.plot([x, x + obs_coord[0]],\
+                        [y, y + obs_coord[1]],\
+                        '-', linewidth = 4, color='green')
             # debug info
             if len(dubug_info) != 0:
                 a0 = dubug_info["a0"]
