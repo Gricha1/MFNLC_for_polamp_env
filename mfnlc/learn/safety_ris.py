@@ -190,7 +190,7 @@ class SafetyRis(SAC):
         #     1.0 * (np.sqrt(np.power(np.array(next_state_batch)[:, -e_v:-i_v], 2).sum(-1, keepdims=True)) > 0.1)
         done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch)
         # done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch // (1.0 + 1.0))
-        reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward)) * (1.0 - collision_batch) \
+        reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward) + env.envs[0].env.arrive_reward * done_batch) * (1.0 - collision_batch) \
                         + (env.envs[0].env.collision_penalty) * collision_batch
 
         cost_batch = (- np.ones_like(done_batch) * 0)

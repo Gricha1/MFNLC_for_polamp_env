@@ -246,7 +246,7 @@ def train(env_name,
     if use_wandb:
         run_id = run.id
         video_recorder = VideoRecorderCallback(callback_eval_env, 
-                                            n_eval_episodes=10, 
+                                            n_eval_episodes=40, 
                                             render_freq=validate_freq,
                                             gradient_save_freq=0, # error if > 0 
                                             model_save_path=f"models/{run_id}",

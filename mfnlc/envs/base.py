@@ -107,7 +107,7 @@ class SafetyGymBase(EnvBase):
         #                            if 'hazards_lidar' in obs_name])
         self.obstacle_in_obs = 4
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
-        self.frame_stack = 3
+        self.frame_stack = 1
         # Reward config
         self.collision_penalty = -0.01
         self.arrive_reward = 20
@@ -303,8 +303,8 @@ class GCSafetyGymBase(SafetyGymBase):
                 self.max_episode_steps = max_episode_steps
         self.spec = EnvSpec()
         # Reward config
-        self.collision_penalty = -80
-        self.arrive_reward = 0
+        self.collision_penalty = -70
+        self.arrive_reward = 20
         self.time_step_reward = -1
         self.subgoal_pos = None
         self.obstacle_observation = None
@@ -334,7 +334,7 @@ class GCSafetyGymBase(SafetyGymBase):
             "_seed": 42,
         })
         self.obstacle_in_obs = 4
-        self.frame_stack = 3
+        self.frame_stack = 1
         self.state_history = deque([])
         self.goal_history = deque([])
         self.history_len = self.frame_stack
