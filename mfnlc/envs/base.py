@@ -304,7 +304,7 @@ class GCSafetyGymBase(SafetyGymBase):
         self.spec = EnvSpec()
         # Reward config
         self.collision_penalty = -70
-        self.arrive_reward = 20
+        self.arrive_reward = 100
         self.time_step_reward = -1
         self.subgoal_pos = None
         self.obstacle_observation = None

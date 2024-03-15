@@ -337,14 +337,16 @@ class SafetyRis(SAC):
         with th.no_grad():
             # Compute target value
             new_subgoal = subgoal_distribution.loc # 2048 x 20
-            policy_v_1 = self.value(state, new_subgoal) # 2048 x 1
-            policy_v_2 = self.value(new_subgoal, goal) # 2048 x 1
-            policy_v = th.cat([policy_v_1, policy_v_2], -1).clamp(min=self.clip_v_function, max=0.0).abs().max(-1)[0]
+            policy_v_1 = self.value(state, new_subgoal) - self.env.envs[0].env.arrive_reward # 2048 x 1
+            policy_v_2 = self.value(new_subgoal, goal) - self.env.envs[0].env.arrive_reward # 2048 x 1
+            policy_v = th.cat([policy_v_1, policy_v_2], -1).clamp(min=self.clip_v_function - self.env.envs[0].env.arrive_reward, max=0.0).abs().max(-1)[0]
+            policy_v += self.env.envs[0].env.arrive_reward
 
             # Compute subgoal distance loss
-            v_1 = self.value(state, subgoal)
-            v_2 = self.value(subgoal, goal)
-            v = th.cat([v_1, v_2], -1).clamp(min=self.clip_v_function, max=0.0).abs().max(-1)[0]
+            v_1 = self.value(state, subgoal) - self.env.envs[0].env.arrive_reward
+            v_2 = self.value(subgoal, goal) - - self.env.envs[0].env.arrive_reward
+            v = th.cat([v_1, v_2], -1).clamp(min=self.clip_v_function - self.env.envs[0].env.arrive_reward, max=0.0).abs().max(-1)[0]
+            v += self.env.envs[0].env.arrive_reward
             adv = - (v - policy_v)
             weight = F.softmax(adv/self.Lambda, dim=0)
 
