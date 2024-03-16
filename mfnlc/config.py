@@ -120,7 +120,7 @@ env_config = {
                                    [-1.8, 0], [-0.8, 1.8]]}
     },
     "GCCar": {
-        "max_step": 1000,
+        "max_step": 600,
         "goal_dim": 2,
         "state_dim": 0,
         "robot_radius": 0.3,
