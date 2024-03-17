@@ -128,7 +128,7 @@ class SafetyRis(SAC):
             max_size=500_000,
             env=env,
             fraction_goals_are_rollout_goals = fraction_goals_are_rollout_goals,
-            fraction_resampled_goals_are_env_goals = fraction_goals_are_rollout_goals,
+            fraction_resampled_goals_are_env_goals = fraction_resampled_goals_are_env_goals,
             fraction_resampled_goals_are_replay_buffer_goals = fraction_resampled_goals_are_replay_buffer_goals,
             ob_keys_to_save     =["collision", "clearance_is_enough"],
             desired_goal_keys   =["desired_goal"],
