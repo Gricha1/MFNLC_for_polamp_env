@@ -53,6 +53,9 @@ def train(env_name,
           Lambda = 0.1, # RIS
           n_ensemble = 10, # RIS
           clip_v_function = -150, # RIS,
+          fraction_goals_are_rollout_goals: float = 0.2,
+          fraction_resampled_goals_are_env_goals: float = 0.0,
+          fraction_resampled_goals_are_replay_buffer_goals: float = 0.5,
           critic_max_grad_norm: float = None, # RIS
           actor_max_grad_norm: float = None, # RIS
           create_eval_env: bool = False,
@@ -292,6 +295,9 @@ def train(env_name,
         optimize_memory_usage, ent_coef, target_update_interval, target_entropy, 
         use_sde, sde_sample_freq, use_sde_at_warmup, 
         alpha, Lambda, n_ensemble, clip_v_function,
+        fraction_goals_are_rollout_goals,
+        fraction_resampled_goals_are_env_goals,
+        fraction_resampled_goals_are_replay_buffer_goals,
         tensorboard_log, create_eval_env, policy_to_delete_kwargs, verbose, seed, default_device)
 
     model.learn(total_timesteps, video_recorder, log_interval, eval_env, eval_freq,
