@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union, Iterable
 import gym
 import numpy as np
 import torch as th
+import time
 from stable_baselines3 import SAC
 from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.noise import ActionNoise
@@ -16,11 +17,13 @@ from stable_baselines3.common.utils import polyak_update, check_for_correct_spac
 from stable_baselines3.sac.policies import SACPolicy
 from stable_baselines3.common.type_aliases import TrainFreq, TrainFrequencyUnit
 from torch.nn import functional as F
+from stable_baselines3.common.utils import safe_mean
 
 from mfnlc.config import default_device
 from mfnlc.learn.utils import list_dict_to_dict_list
 from mfnlc.learn.subgoal import LaplacePolicy, GaussianPolicy, EnsembleCritic, CustomActorCriticPolicy
 from mfnlc.learn.HER import HERReplayBuffer, PathBuilder
+from collections import deque
 
 
 class SafetyRis(SAC):
@@ -116,6 +119,10 @@ class SafetyRis(SAC):
         self.epsilon = epsilon
         self.critic_max_grad_norm = critic_max_grad_norm
         self.actor_max_grad_norm = actor_max_grad_norm
+
+        # additional buffer
+        self.ep_collision_buffer = deque(maxlen=100)
+        self.ep_min_distance_buffer = deque(maxlen=100)
 
         # path builder for HER
         vectorized = False
@@ -257,6 +264,55 @@ class SafetyRis(SAC):
             )
         self.custom_replay_buffer.add_path(self.path_builder.get_all_stacked())  
         return rollout
+    
+    def _update_info_buffer(self, infos: List[Dict[str, Any]], dones: Optional[np.ndarray] = None) -> None:
+        """
+        Retrieve reward, episode length, episode success and update the buffer
+        if using Monitor wrapper or a GoalEnv.
+
+        :param infos: List of additional information about the transition.
+        :param dones: Termination signals
+        """
+        if dones is None:
+            dones = np.array([False] * len(infos))
+        for idx, info in enumerate(infos):
+            maybe_ep_info = info.get("episode")
+            maybe_is_success = info.get("is_success")
+            maybe_is_collision = info.get("collision")
+            min_goal_distance = info.get("min_goal_distance")
+            if maybe_ep_info is not None:
+                self.ep_info_buffer.extend([maybe_ep_info])
+            if maybe_is_success is not None and dones[idx]:
+                self.ep_success_buffer.append(maybe_is_success)
+            if maybe_is_collision is not None and dones[idx]:
+                self.ep_collision_buffer.append(maybe_is_collision)
+            if min_goal_distance is not None and dones[idx]:
+                self.ep_min_distance_buffer.append(min_goal_distance)
+    
+    def _dump_logs(self) -> None:
+        """
+        Write log.
+        """
+        time_elapsed = time.time() - self.start_time
+        fps = int((self.num_timesteps - self._num_timesteps_at_start) / (time_elapsed + 1e-8))
+        self.logger.record("time/episodes", self._episode_num, exclude="tensorboard")
+        if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+            self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+            self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+        self.logger.record("time/fps", fps)
+        self.logger.record("time/time_elapsed", int(time_elapsed), exclude="tensorboard")
+        self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
+        if self.use_sde:
+            self.logger.record("train/std", (self.actor.get_std()).mean().item())
+
+        if len(self.ep_success_buffer) > 0:
+            self.logger.record("rollout/success_rate", safe_mean(self.ep_success_buffer))
+        if len(self.ep_collision_buffer) > 0:
+            self.logger.record("rollout/collision_rate", safe_mean(self.ep_collision_buffer))
+        if len(self.ep_min_distance_buffer) > 0:
+            self.logger.record("rollout/avg_min_distance", safe_mean(self.ep_min_distance_buffer))
+        # Pass the number of timesteps for tensorboard
+        self.logger.dump(step=self.num_timesteps)
 
     def _store_transition(
         self,
