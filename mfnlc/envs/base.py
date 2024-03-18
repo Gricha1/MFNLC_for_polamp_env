@@ -107,7 +107,7 @@ class SafetyGymBase(EnvBase):
         #                            if 'hazards_lidar' in obs_name])
         self.obstacle_in_obs = 4
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
-        self.frame_stack = 3
+        self.frame_stack = 1
         # Reward config
         self.collision_penalty = -0.01
         self.arrive_reward = 20
@@ -334,7 +334,7 @@ class GCSafetyGymBase(SafetyGymBase):
             "_seed": 42,
         })
         self.obstacle_in_obs = 4
-        self.frame_stack = 3
+        self.frame_stack = 1
         self.state_history = deque([])
         self.goal_history = deque([])
         self.history_len = self.frame_stack
@@ -408,6 +408,7 @@ class GCSafetyGymBase(SafetyGymBase):
         self.subgoal_pos = None
         obs = super().reset(**kwargs)
         assert not obs["collision"], "initial state in collision!!!"
+        self.previous_min_goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
         return obs
     
     def step(self, action: np.ndarray):
@@ -422,9 +423,9 @@ class GCSafetyGymBase(SafetyGymBase):
 
         arrive = info.get("goal_met", False)
 
-        if self.env.robot_pos[0] < -2.0 or self.env.robot_pos[0] > 2.0 or \
-            self.env.robot_pos[1] < -2.0 or self.env.robot_pos[1] > 2.0:
-            collision = True
+        # if self.env.robot_pos[0] < -2.0 or self.env.robot_pos[0] > 2.0 or \
+        #     self.env.robot_pos[1] < -2.0 or self.env.robot_pos[1] > 2.0:
+        #     collision = True
 
         reward = self.time_step_reward + self.collision_penalty * collision
 
@@ -452,6 +453,9 @@ class GCSafetyGymBase(SafetyGymBase):
 
         info["goal_is_arrived"] = arrive
         info["is_success"] = arrive
+        goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
+        info["min_goal_distance"] = min(goal_dist, self.previous_min_goal_dist)
+        self.previous_min_goal_dist = info["min_goal_distance"]
 
         return obs, reward, done, info
     

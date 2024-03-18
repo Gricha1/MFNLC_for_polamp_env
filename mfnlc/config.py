@@ -96,7 +96,7 @@ env_config = {
         }
     },
     "GCPoint": {
-        "max_step": 250,
+        "max_step": 600,
         "goal_dim": 2,
         "state_dim": 0,
         "robot_radius": 0.3,
