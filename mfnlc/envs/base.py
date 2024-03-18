@@ -14,6 +14,9 @@ import matplotlib.pyplot as plt
 from mfnlc.config import env_config
 from collections import deque
 
+FRAME_STACK = 1
+COLLISION_PENALTY = -60
+ENV_BOUNDS = False
 
 class EnvBase(Env):
     metadata = {"render.modes": ["human", "rgb_array"]}
@@ -107,9 +110,9 @@ class SafetyGymBase(EnvBase):
         #                            if 'hazards_lidar' in obs_name])
         self.obstacle_in_obs = 4
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
-        self.frame_stack = 1
+        self.frame_stack = FRAME_STACK
         # Reward config
-        self.collision_penalty = -0.01
+        self.collision_penalty = COLLISION_PENALTY
         self.arrive_reward = 20
 
         customized_config = env_config[self.robot_name].get("env_prop", None)
@@ -303,7 +306,7 @@ class GCSafetyGymBase(SafetyGymBase):
                 self.max_episode_steps = max_episode_steps
         self.spec = EnvSpec()
         # Reward config
-        self.collision_penalty = -100
+        self.collision_penalty = COLLISION_PENALTY
         self.arrive_reward = 0
         self.time_step_reward = -1
         self.subgoal_pos = None
@@ -334,7 +337,7 @@ class GCSafetyGymBase(SafetyGymBase):
             "_seed": 42,
         })
         self.obstacle_in_obs = 4
-        self.frame_stack = 1
+        self.frame_stack = FRAME_STACK
         self.state_history = deque([])
         self.goal_history = deque([])
         self.history_len = self.frame_stack
@@ -423,9 +426,10 @@ class GCSafetyGymBase(SafetyGymBase):
 
         arrive = info.get("goal_met", False)
 
-        # if self.env.robot_pos[0] < -2.0 or self.env.robot_pos[0] > 2.0 or \
-        #     self.env.robot_pos[1] < -2.0 or self.env.robot_pos[1] > 2.0:
-        #     collision = True
+        if ENV_BOUNDS:
+            if self.env.robot_pos[0] < -2.0 or self.env.robot_pos[0] > 2.0 or \
+                self.env.robot_pos[1] < -2.0 or self.env.robot_pos[1] > 2.0:
+                collision = True
 
         reward = self.time_step_reward + self.collision_penalty * collision
 

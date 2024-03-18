@@ -63,6 +63,9 @@ class SafetyRis(SAC):
         Lambda: float = 0.1, 
         n_ensemble: int = 10, 
         clip_v_function: float = -150,
+        fraction_goals_are_rollout_goals: float = 0.2,
+        fraction_resampled_goals_are_env_goals: float = 0.0,
+        fraction_resampled_goals_are_replay_buffer_goals: float = 0.5,
         tensorboard_log: Optional[str] = None,
         create_eval_env: bool = False,
         policy_kwargs: Optional[Dict[str, Any]] = None,
@@ -105,9 +108,12 @@ class SafetyRis(SAC):
         self.state_dim = state_dim
         self.action_dim = action_dim
 
+        # policy
         self.pi_lr = pi_lr
         self.q_lr = q_lr
         self.new_policy = policy
+        self.critic_max_grad_norm = critic_max_grad_norm
+        self.actor_max_grad_norm = actor_max_grad_norm
 
         # subgoal
         self.subgoal_net = subgoal_net
@@ -117,8 +123,6 @@ class SafetyRis(SAC):
         self.n_ensemble = n_ensemble
         self.clip_v_function = clip_v_function
         self.epsilon = epsilon
-        self.critic_max_grad_norm = critic_max_grad_norm
-        self.actor_max_grad_norm = actor_max_grad_norm
 
         # additional buffer
         self.ep_collision_buffer = deque(maxlen=100)
@@ -130,9 +134,9 @@ class SafetyRis(SAC):
         self.custom_replay_buffer = HERReplayBuffer(
             max_size=500_000,
             env=env,
-            fraction_goals_are_rollout_goals = 0.2,
-            fraction_resampled_goals_are_env_goals = 0.0,
-            fraction_resampled_goals_are_replay_buffer_goals = 0.5,
+            fraction_goals_are_rollout_goals = fraction_goals_are_rollout_goals,
+            fraction_resampled_goals_are_env_goals = fraction_resampled_goals_are_env_goals,
+            fraction_resampled_goals_are_replay_buffer_goals = fraction_resampled_goals_are_replay_buffer_goals,
             ob_keys_to_save     =["collision", "clearance_is_enough"],
             desired_goal_keys   =["desired_goal"],
             observation_key     = 'observation',
@@ -140,8 +144,14 @@ class SafetyRis(SAC):
             achieved_goal_key   = 'achieved_goal',
             vectorized          = vectorized 
         )
+
+        # safety
+        self.safety = False
+
+        # sac
         self.sac = False
         self.sac_alpha = 0.2
+
         if _init_setup_model:
             self._setup_model()
 
@@ -529,6 +539,29 @@ class SafetyRis(SAC):
             self.logger.record("train/D_KL", D_KL.mean().item())
             self.logger.record("train/target_subgoal_V", np.mean(debug_info["target_subgoal_V"]))
             self.logger.record("train/subgoal_V", np.mean(debug_info["subgoal_V"]))
+
+    def save(self, folder, save_optims=False):
+        th.save(self.actor.state_dict(),		 folder + "actor.pth")
+        th.save(self.critic.state_dict(),		folder + "critic.pth")
+        if self.safety:
+            th.save(self.critic_cost.state_dict(),		folder + "critic_cost.pth")
+        th.save(self.subgoal_net.state_dict(),   folder + "subgoal_net.pth")
+        if save_optims:
+            th.save(self.actor_optimizer.state_dict(), 	folder + "actor_opti.pth")
+            th.save(self.critic_optimizer.state_dict(), 	folder + "critic_opti.pth")
+            th.save(self.subgoal_optimizer.state_dict(), folder + "subgoal_opti.pth")
+    
+    def load(self, folder, old_version=False, best=True):
+        if old_version:
+            run_name = ""	
+        else:
+            run_name = "best_" if best else "last_"
+        print(f"load run_name: {run_name}")
+        self.actor.load_state_dict(th.load(folder+run_name+"actor.pth", map_location=self.device))
+        self.critic.load_state_dict(th.load(folder+run_name+"critic.pth", map_location=self.device))
+        if self.safety:
+            self.critic_cost.load_state_dict(th.load(folder+run_name+"critic_cost.pth", map_location=self.device))
+        self.subgoal_net.load_state_dict(th.load(folder+run_name+"subgoal_net.pth", map_location=self.device))
 
     def _excluded_save_params(self) -> List[str]:
         return super(SafetyRis, self)._excluded_save_params() + ["actor", "critic", "critic_target"]
