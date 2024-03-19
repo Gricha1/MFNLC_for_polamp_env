@@ -124,6 +124,8 @@ def train(env_name,
                 self._is_success_buffer = []
                 self.collisions = []
                 dubug_info = {"acc_reward" : 0, "t": 0, "acc_cost" : 0}
+                debug_v_s_sg = []
+                debug_v_sg_g = []
 
                 def grab_screens(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
                     # predict subgoal and set to env
@@ -136,6 +138,8 @@ def train(env_name,
                     dubug_info["a1"] = _locals["actions"][1]
                     dubug_info["acc_reward"] += _locals["reward"]
                     dubug_info["acc_cost"] += _locals["info"]["cost"]
+                    dubug_info["v_s_sg"] = []
+                    dubug_info["v_sg_g"] = []
                     dubug_info["t"] += 1
                     with th.no_grad():
                         state = _locals["observations"]["observation"]
@@ -144,6 +148,11 @@ def train(env_name,
                         to_torch_goal = th.FloatTensor(goal).to(default_device).unsqueeze(0)
                         subgoal_distribution = self.model.subgoal_net(to_torch_state, to_torch_goal)
                         subgoal = subgoal_distribution.loc
+                        if _locals["episode_counts"][_locals["i"]] == 0:
+                            debug_v_s_sg.append(self.model.value(to_torch_state, subgoal).cpu().item())
+                            debug_v_sg_g.append(self.model.value(subgoal, subgoal).cpu().item())
+                            dubug_info["v_s_sg"] = debug_v_s_sg
+                            dubug_info["v_sg_g"] = debug_v_sg_g
                     _locals["env"].envs[0].set_subgoal_pos(subgoal)
                     # dubug subgoal
                     if _locals["episode_counts"][_locals["i"]] == 0 and dubug_info["t"] == 1:
@@ -188,6 +197,9 @@ def train(env_name,
                     del robot_screens
                 if validate_subgoal_video:
                     del positions_screens
+                del debug_v_s_sg
+                del debug_v_sg_g
+                del dubug_info
 
                 mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
                 min_reward, max_reward = np.min(episode_rewards), np.max(episode_rewards)

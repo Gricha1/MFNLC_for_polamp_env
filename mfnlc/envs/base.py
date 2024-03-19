@@ -17,6 +17,7 @@ from collections import deque
 FRAME_STACK = 1
 COLLISION_PENALTY = -60
 ENV_BOUNDS = False
+PLOT_ADD_SUBGOAL_VALUES = False
 
 class EnvBase(Env):
     metadata = {"render.modes": ["human", "rgb_array"]}
@@ -535,13 +536,18 @@ class GCSafetyGymBase(SafetyGymBase):
             "clearance_is_enough": clearance_is_enough,
         }
     
-    def custom_render(self, positions_render=False, dubug_info={}, shape=(600, 600)):
+    def custom_render(self, positions_render=False, dubug_info={}, add_subgoal_values=PLOT_ADD_SUBGOAL_VALUES, shape=(600, 600)):
         if positions_render:
             env_min_x, env_max_x = -3, 3
             env_min_y, env_max_y = -3, 3
             if self.render_info["fig"] is None:
-                self.render_info["fig"] = plt.figure(figsize=[6.4, 4.8])
-                self.render_info["ax_states"] = self.render_info["fig"].add_subplot(111)
+                if add_subgoal_values:
+                    self.render_info["fig"] = plt.figure(figsize=[6.4*2, 4.8])
+                    self.render_info["ax_states"] = self.render_info["fig"].add_subplot(121)
+                    self.render_info["ax_subgoal_values"] = self.render_info["fig"].add_subplot(122)
+                else:
+                    self.render_info["fig"] = plt.figure(figsize=[6.4, 4.8])
+                    self.render_info["ax_states"] = self.render_info["fig"].add_subplot(111)
             self.render_info["ax_states"].set_ylim(bottom=env_min_y, top=env_max_y)
             self.render_info["ax_states"].set_xlim(left=env_min_x, right=env_max_x)
             # robot pose
@@ -565,6 +571,9 @@ class GCSafetyGymBase(SafetyGymBase):
                 circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="orange", alpha=0.5)
                 self.render_info["ax_states"].add_patch(circle_robot)
                 self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s_g")
+                if add_subgoal_values:
+                    self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_s_sg"])), dubug_info["v_s_sg"])
+                    self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_sg_g"])), dubug_info["v_sg_g"])
             # goal
             x = self.env.goal_pos[0]
             y = self.env.goal_pos[1]
@@ -585,16 +594,16 @@ class GCSafetyGymBase(SafetyGymBase):
             y = self.env.robot_pos[1]
             self.obstacle_observation = np.reshape(self.obstacle_observation, (int(self.obstacle_observation.shape[0]/ 2), 2))
             for obs_coord in self.obstacle_observation:
-                plt.plot([x, x + obs_coord[0]],\
+                self.render_info["ax_states"].plot([x, x + obs_coord[0]],\
                         [y, y + obs_coord[1]],\
-                        '-', linewidth = 4, color='red')
+                        '-', linewidth = 2, color='red')
             x = self.env.goal_pos[0]
             y = self.env.goal_pos[1]
             self.obstacle_goal_observation = np.reshape(self.obstacle_goal_observation, (int(self.obstacle_goal_observation.shape[0]/ 2), 2))
             for obs_coord in self.obstacle_goal_observation:
-                plt.plot([x, x + obs_coord[0]],\
+                self.render_info["ax_states"].plot([x, x + obs_coord[0]],\
                         [y, y + obs_coord[1]],\
-                        '-', linewidth = 4, color='green')
+                        '-', linewidth = 2, color='green')
             # debug info
             if len(dubug_info) != 0:
                 a0 = dubug_info["a0"]
@@ -614,6 +623,8 @@ class GCSafetyGymBase(SafetyGymBase):
             data = np.frombuffer(self.render_info["fig"].canvas.tostring_rgb(), dtype=np.uint8)
             data = data.reshape(self.render_info["fig"].canvas.get_width_height()[::-1] + (3,))
             self.render_info["ax_states"].clear()
+            if add_subgoal_values:
+                self.render_info["ax_subgoal_values"].clear()
             return data
         else:
             # camera_name = ('fixednear', 'fixedfar', 'vision', 'track')
