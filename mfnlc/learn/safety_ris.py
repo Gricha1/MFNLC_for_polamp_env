@@ -318,7 +318,7 @@ class SafetyRis(SAC):
         if len(self.ep_success_buffer) > 0:
             self.logger.record("rollout/success_rate", safe_mean(self.ep_success_buffer))
         if len(self.ep_collision_buffer) > 0:
-            self.logger.record("rollout/collision_rate", safe_mean(self.ep_collision_buffer))
+            self.logger.record("rollout/train_collision_rate", safe_mean(self.ep_collision_buffer))
         if len(self.ep_min_distance_buffer) > 0:
             self.logger.record("rollout/avg_min_distance", safe_mean(self.ep_min_distance_buffer))
         # Pass the number of timesteps for tensorboard
