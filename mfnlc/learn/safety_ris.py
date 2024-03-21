@@ -413,6 +413,8 @@ class SafetyRis(SAC):
         debug_info["advs"].append(adv.mean().item())
         debug_info["target_subgoal_V"].append(v.mean().item())
         debug_info["subgoal_V"].append(policy_v.mean().item())
+        debug_info["v(s, s_g)"].append(policy_v_1.mean().item())
+        debug_info["v(s_g, g)"].append(policy_v_2.mean().item())
 
         # Update network
         self.subgoal_optimizer.zero_grad()
@@ -459,6 +461,8 @@ class SafetyRis(SAC):
         debug_info["target_subgoal_V"] = []
         debug_info["subgoal_V"] = []
         debug_info["target_Q"] = []
+        debug_info["v(s, s_g)"] = []
+        debug_info["v(s_g, g)"] = []
 
         for gradient_step in range(gradient_steps):
             state, action, reward, cost, next_state, done, goal = self.sample_and_preprocess_batch(
@@ -539,6 +543,8 @@ class SafetyRis(SAC):
             self.logger.record("train/D_KL", D_KL.mean().item())
             self.logger.record("train/target_subgoal_V", np.mean(debug_info["target_subgoal_V"]))
             self.logger.record("train/subgoal_V", np.mean(debug_info["subgoal_V"]))
+            self.logger.record("train/v(s, s_g)", np.mean(debug_info["v(s, s_g)"]))
+            self.logger.record("train/v(s_g, g)", np.mean(debug_info["v(s_g, g)"]))
 
     def save(self, folder, save_optims=False):
         th.save(self.actor.state_dict(),		 folder + "actor.pth")
