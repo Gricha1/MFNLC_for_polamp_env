@@ -303,8 +303,8 @@ class GCSafetyGymBase(SafetyGymBase):
                 self.max_episode_steps = max_episode_steps
         self.spec = EnvSpec()
         # Reward config
-        self.collision_penalty = -70
-        self.arrive_reward = 150
+        self.collision_penalty = -60
+        self.arrive_reward = 300
         self.time_step_reward = -1
         self.subgoal_pos = None
         self.obstacle_observation = None
@@ -422,9 +422,9 @@ class GCSafetyGymBase(SafetyGymBase):
 
         arrive = info.get("goal_met", False)
 
-        if self.env.robot_pos[0] < -2.0 or self.env.robot_pos[0] > 2.0 or \
-            self.env.robot_pos[1] < -2.0 or self.env.robot_pos[1] > 2.0:
-            collision = True
+        #if self.env.robot_pos[0] < -2.0 or self.env.robot_pos[0] > 2.0 or \
+        #    self.env.robot_pos[1] < -2.0 or self.env.robot_pos[1] > 2.0:
+        #    collision = True
 
         reward = self.time_step_reward + self.collision_penalty * collision
 
