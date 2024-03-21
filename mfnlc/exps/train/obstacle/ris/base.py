@@ -311,7 +311,21 @@ def train(env_name,
         fraction_resampled_goals_are_env_goals,
         fraction_resampled_goals_are_replay_buffer_goals,
         tensorboard_log, create_eval_env, policy_to_delete_kwargs, verbose, seed, default_device)
-
+    
+    # load model
+    load_model = False
+    if use_wandb:
+        wandb.config["load_model"] = load_model
+    if load_model:
+        folder = "models/m0m2u2vh/"
+        load_results = os.path.isdir(folder)
+        assert load_results
+        model.load(folder)
+        print("weights is loaded")
+        wandb.config["loaded_model_path"] = folder
+    else:
+        print("WEIGHTS ISN'T LOADED")
+    
     model.learn(total_timesteps, video_recorder, log_interval, eval_env, eval_freq,
                 n_eval_episodes, tb_log_name, eval_log_path, reset_num_timesteps)
 

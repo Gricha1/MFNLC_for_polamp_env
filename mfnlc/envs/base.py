@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 from mfnlc.config import env_config
 from collections import deque
 
+DIFFICULTY_LEVEL = 1
+OBSTACLES_IN_OBSERVATION = 4
 FRAME_STACK = 1
 COLLISION_PENALTY = -60
 ENV_BOUNDS = False
@@ -109,7 +111,7 @@ class SafetyGymBase(EnvBase):
         # self.obstacle_in_obs = sum([np.prod(self.env.obs_space_dict[obs_name].shape)
         #                            for obs_name in self.env.obs_space_dict
         #                            if 'hazards_lidar' in obs_name])
-        self.obstacle_in_obs = 4
+        self.obstacle_in_obs = OBSTACLES_IN_OBSERVATION
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
         self.frame_stack = FRAME_STACK
         # Reward config
@@ -212,7 +214,8 @@ class SafetyGymBase(EnvBase):
 
     def obstacle_obs(self) -> np.ndarray:
         if self.no_obstacle:
-            return np.array([])
+            self.obstacle_observation = np.zeros(self.num_relevant_dim * self.obstacle_in_obs)
+            return self.obstacle_observation
 
         # get distance to each obstacle upto self.obstacle_in_obs nearest obstacles
         vec_to_obs = (self.env.hazards_pos - self.env.robot_pos)[:, :self.num_relevant_dim]
@@ -317,14 +320,14 @@ class GCSafetyGymBase(SafetyGymBase):
         self.render_info["fig"] = None
         self.render_info["ax_states"] = None
         # set difficulty level
-        level = 1
+        level = DIFFICULTY_LEVEL
         robot_name = "GC" + self.robot_name
         difficulty_config = env_config[robot_name]["difficulty"][level]
         floor_lb, floor_ub = np.array(difficulty_config[1], dtype=np.float32)
         fixed_hazards = env_config[robot_name]["fixed_hazards"]
         hazards_placements = None
         if fixed_hazards:
-            if level != 1:
+            if level > 1:
                 assert 1 == 0, "didnt implemented"
             hazards_locations = env_config[robot_name]["fixed_hazard_poses"][level]
         else:
@@ -337,7 +340,7 @@ class GCSafetyGymBase(SafetyGymBase):
             'hazards_locations': hazards_locations,
             "_seed": 42,
         })
-        self.obstacle_in_obs = 4
+        self.obstacle_in_obs = OBSTACLES_IN_OBSERVATION
         self.frame_stack = FRAME_STACK
         self.state_history = deque([])
         self.goal_history = deque([])
@@ -350,17 +353,9 @@ class GCSafetyGymBase(SafetyGymBase):
         self.action_space = self.env.action_space
 
         max_observation = 10
-        if self.no_obstacle:
-            observation_high = max_observation * np.ones(
-                ((self.num_relevant_dim + self.robot_obs_size) * self.frame_stack),
-                dtype=np.float32)
-        else:
-            # observation_high = max_observation * np.ones(
-            #     (self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs),
-            #     dtype=np.float32)
-            observation_high = max_observation * np.ones(
-                ((self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs * self.num_relevant_dim) * self.frame_stack),
-                dtype=np.float32)
+        observation_high = max_observation * np.ones(
+            ((self.num_relevant_dim + self.robot_obs_size + self.obstacle_in_obs * self.num_relevant_dim) * self.frame_stack),
+            dtype=np.float32)
         observation_low = -observation_high
         self.observation_space = gym.spaces.Dict({
             "observation": gym.spaces.Box(observation_low, observation_high, dtype=np.float32),
@@ -379,7 +374,8 @@ class GCSafetyGymBase(SafetyGymBase):
             get obstacle observation with respect to goal
         """
         if self.no_obstacle:
-            return np.array([])
+            self.obstacle_goal_observation = np.zeros(self.num_relevant_dim * self.obstacle_in_obs)
+            return self.obstacle_goal_observation
 
         # get distance to each obstacle upto self.obstacle_in_obs nearest obstacles
         vec_to_obs = (self.env.hazards_pos - self.env.goal_pos)[:, :self.num_relevant_dim]
