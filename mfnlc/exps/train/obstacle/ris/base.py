@@ -162,11 +162,21 @@ def train(env_name,
                     # get video
                     if _locals["episode_counts"][_locals["i"]] == 0:
                         if validate_robot_video:
-                            screen = self._eval_env.custom_render(positions_render=False)
-                            robot_screens.append(screen.transpose(2, 0, 1))
+                            if self._eval_env.plot_only_start_goal_pose:
+                                if dubug_info["t"] == 1:
+                                    screen = self._eval_env.custom_render(positions_render=False)
+                                    robot_screens.append(screen.transpose(2, 0, 1))
+                            else:
+                                screen = self._eval_env.custom_render(positions_render=False)
+                                robot_screens.append(screen.transpose(2, 0, 1))
                         if validate_subgoal_video:
-                            screen = self._eval_env.custom_render(positions_render=True, dubug_info=dubug_info)
-                            positions_screens.append(screen.transpose(2, 0, 1))
+                            if self._eval_env.plot_only_start_goal_pose:
+                                if dubug_info["t"] == 1:
+                                    screen = self._eval_env.custom_render(positions_render=True, dubug_info=dubug_info)
+                                    positions_screens.append(screen.transpose(2, 0, 1))
+                            else:
+                                screen = self._eval_env.custom_render(positions_render=True, dubug_info=dubug_info)
+                                positions_screens.append(screen.transpose(2, 0, 1))
                     # get success rate
                     if _locals["done"]:
                         maybe_is_success = _locals["info"].get("goal_is_arrived")

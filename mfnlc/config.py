@@ -1,6 +1,36 @@
 from os.path import dirname, abspath
-
+#import os
 import mfnlc
+#from mfnlc.envs.dataset.utils_operations import *
+
+#dataSet = generateDataSet(our_env_config, name_folder=args.dataset, total_maps=total_maps, dynamic=False)
+#maps, trainTask, valTasks = dataSet["obstacles"]
+"""
+dataset_exists = os.path.isdir("GCPoint_level_1")
+print("dataset exists:", dataset_exists)
+assert 1 == 0
+file = "mfnlc/envs/dataset/GCPoint_level_1/train_map0.txt"
+tasks = []
+with open(file, "r") as f:
+    j = -1
+    for line in f.readlines():
+        if(j == -1):
+            j += 1
+            continue
+        parameters = line.split('\t')
+        print("pars:", parameters)
+        assert 1 == 0
+        # print(parameters)
+        start = []
+        goal = []
+        for i in range(len(parameters) - 1):
+            # print(parameters[i])
+            if i > 4:
+                goal.append(float(parameters[i]))
+            else:
+                start.append(float(parameters[i]))
+        tasks.append((start, goal))
+"""
 
 default_device = "cuda"
 ROOT = dirname(abspath(mfnlc.__file__))
@@ -119,7 +149,10 @@ env_config = {
             1: [[-1.2, -1], [0, -1.4], 
                 [0, 1.1], [1, 1.8], 
                 [0, 0], [1.3, 0],
-                [-1.8, 0], [-0.8, 1.8]]}
+                [-1.8, 0], [-0.8, 1.8]]},
+        "custom_dataset": {
+            "1": []
+        }
     },
     "GCCar": {
         "max_step": 600,

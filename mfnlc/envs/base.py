@@ -14,12 +14,14 @@ import matplotlib.pyplot as plt
 from mfnlc.config import env_config
 from collections import deque
 
+CUSTOM_DATASET = False
 DIFFICULTY_LEVEL = 1
 OBSTACLES_IN_OBSERVATION = 4
 FRAME_STACK = 1
 COLLISION_PENALTY = -60
 ENV_BOUNDS = False
 PLOT_ADD_SUBGOAL_VALUES = False
+PLOT_ONLY_START_GOAL_POSE = False
 
 class EnvBase(Env):
     metadata = {"render.modes": ["human", "rgb_array"]}
@@ -319,16 +321,33 @@ class GCSafetyGymBase(SafetyGymBase):
         self.render_info = {}
         self.render_info["fig"] = None
         self.render_info["ax_states"] = None
+        self.plot_only_start_goal_pose = PLOT_ONLY_START_GOAL_POSE
         # set difficulty level
         level = DIFFICULTY_LEVEL
         robot_name = "GC" + self.robot_name
         difficulty_config = env_config[robot_name]["difficulty"][level]
         floor_lb, floor_ub = np.array(difficulty_config[1], dtype=np.float32)
+        if CUSTOM_DATASET:
+            assert level == 1, "didnt implement other"
+            """
+                custom_dataset = {"task1:" [[x_s1, y_s1], [x_g1, y_g1]],
+                                  "task2:" [[x_s2, y_s2], [x_g2, y_g2]],
+                                  ...  }
+            """
+            self.custom_dataset = {}
+            #self.fixed_init_and_goal = True # i dont know why this
+            self.task = 1
+            task_1_start = [floor_lb[0], floor_lb[1]]
+            task_1_goal = [floor_ub[0], floor_ub[1]]
+            task_2_start = [floor_lb[0], floor_ub[1]]
+            task_2_goal = [floor_ub[0], floor_lb[1]]
+            self.custom_dataset["task1"] = [task_1_start, task_1_goal]
+            self.custom_dataset["task2"] = [task_2_start, task_2_goal]
         fixed_hazards = env_config[robot_name]["fixed_hazards"]
         hazards_placements = None
         if fixed_hazards:
             if level > 1:
-                assert 1 == 0, "didnt implemented"
+                assert 1 == 0, "didnt implement other"
             hazards_locations = env_config[robot_name]["fixed_hazard_poses"][level]
         else:
             hazards_locations = []
@@ -397,6 +416,17 @@ class GCSafetyGymBase(SafetyGymBase):
         self.subgoal_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
 
     def reset(self, **kwargs):
+        if CUSTOM_DATASET:
+            if self.task == 1:
+                self.task = 2
+            else:
+                self.task = 1
+            current_task = self.custom_dataset["task" + str(self.task)] 
+            self.update_env_config({
+                "robot_locations": [current_task[0]],
+                "goal_locations": [current_task[1]]
+            })
+        
         # check env config
         self.state_history.clear()
         self.goal_history.clear()
