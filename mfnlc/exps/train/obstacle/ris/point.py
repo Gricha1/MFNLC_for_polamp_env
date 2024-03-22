@@ -7,7 +7,7 @@ from mfnlc.exps.train.obstacle.ris.base import train
 
 def learn():
     train(env_name="GCPoint",
-          total_timesteps=2000_000,
+          total_timesteps=5_000_000,
           learning_starts=10_000,
           action_noise=None,
           new_policy_kwargs={"net_arch": [256, 256]},
