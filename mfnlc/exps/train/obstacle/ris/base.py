@@ -134,8 +134,9 @@ def train(env_name,
                         self.collisions.append(1.0)
                     elif _locals['done']:
                         self.collisions.append(0.0)
-                    dubug_info["a0"] = _locals["actions"][0]
-                    dubug_info["a1"] = _locals["actions"][1]
+                    # print(f"action: {_locals['actions']}")
+                    dubug_info["a0"] = _locals["actions"][0][0]
+                    dubug_info["a1"] = _locals["actions"][0][1]
                     dubug_info["acc_reward"] += _locals["reward"]
                     dubug_info["acc_cost"] += _locals["info"]["cost"]
                     dubug_info["v_s_sg"] = []
