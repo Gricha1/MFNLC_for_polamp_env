@@ -131,8 +131,8 @@ class CustomActorCriticPolicy:
 
 		with torch.no_grad():
 			actions = self.select_action(state, goal, deterministic=deterministic)
-
-		return actions, state
+		# print(f"predicted actions: {actions}")
+		return actions.reshape(1, 2), state
 	
 	def set_training_mode(self, train):
 		return
