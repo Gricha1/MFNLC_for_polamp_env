@@ -116,7 +116,11 @@ def train(env_name,
             self.old_success_rate = None
 
         def _on_step(self) -> bool:
-            if self.n_calls % self._render_freq == 0:
+            def run_episodes_and_log_wandb(validation=True, num_episodes=self._n_eval_episodes):
+                if validation:
+                    wandb_folder_name = "eval"
+                else:
+                    wandb_folder_name = "test"
                 if validate_robot_video:
                     robot_screens = []
                 if validate_subgoal_video:
@@ -189,18 +193,18 @@ def train(env_name,
                     self._eval_env,
                     callback=grab_screens,
                     return_episode_rewards=True,
-                    n_eval_episodes=self._n_eval_episodes,
+                    n_eval_episodes=num_episodes,
                     deterministic=self._deterministic,
                 )
                 if validate_robot_video:
                     self.logger.record(
-                        "trajectory/video",
+                        f"{wandb_folder_name}/{wandb_folder_name}_video",
                         Video(th.ByteTensor([robot_screens]), fps=40),
                         exclude=("stdout", "log", "json", "csv"),
                     )
                 if validate_subgoal_video:
                     self.logger.record(
-                        "trajectory/pos_video",
+                        f"{wandb_folder_name}/{wandb_folder_name}_pos_video",
                         Video(th.ByteTensor([positions_screens]), fps=40),
                         exclude=("stdout", "log", "json", "csv"),
                     )
@@ -217,17 +221,23 @@ def train(env_name,
                 mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
                 collision_rate = np.mean(self.collisions)
                 # Add to current Logger
-                self.logger.record("eval/reward", float(mean_reward))
-                self.logger.record("eval/ep_length", mean_ep_length)
-                self.logger.record("eval/reward_min", min_reward)
-                self.logger.record("eval/reward_max", max_reward)
-                self.logger.record("eval/collision_rate", collision_rate)
+                self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_reward", float(mean_reward))
+                self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_ep_length", mean_ep_length)
+                self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_reward_min", min_reward)
+                self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_reward_max", max_reward)
+                self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_collision_rate", collision_rate)
                 if len(self._is_success_buffer) > 0:
                     success_rate = np.mean(self._is_success_buffer)
-                    self.logger.record("eval/custom_success_rate", success_rate)
+                    self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_success_rate", success_rate)
                 else:
                     success_rate = np.mean(self._is_success_buffer)
-                    self.logger.record("eval/custom_success_rate", 0)
+                    self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_success_rate", 0)
+                
+                return success_rate
+            
+            test_freq_multipier = 4
+            if (self.n_calls % self._render_freq == 0):
+                val_success_rate = run_episodes_and_log_wandb(validation=True)
 
                 # Save (current) results
                 hyperparams_tune = False
@@ -237,18 +247,21 @@ def train(env_name,
                 if not hyperparams_tune:
                     self.model.save(folder)
                 # Save (best) results
-                if self.old_success_rate is None or success_rate >= self.old_success_rate:
-                    self.old_success_rate = success_rate
-                    #save_policy_count += 1
+                if self.old_success_rate is None or val_success_rate >= self.old_success_rate:
+                    self.old_success_rate = val_success_rate
                     folder = self.model_save_path + "/" + "best_"
                     if not os.path.exists(folder):
                         os.makedirs(folder)
                     if not hyperparams_tune:
                         self.model.save(folder)
-                    #if args.using_wandb:
-                    #    wandb.log({"save_policy_count": save_policy_count})
             
                 return True
+            
+            elif self.n_calls % (test_freq_multipier * self._render_freq + 1) == 0:
+                self._eval_env.set_test_env()
+                test_success_rate = run_episodes_and_log_wandb(validation=False, num_episodes=100)
+                self._eval_env.set_eval_env()
+
             else:
                 return super()._on_step()
         

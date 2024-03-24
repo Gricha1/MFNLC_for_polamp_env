@@ -15,6 +15,7 @@ from mfnlc.config import env_config
 from collections import deque
 
 CUSTOM_DATASET = False
+FIXED_HAZARDS = False
 DIFFICULTY_LEVEL = 1
 OBSTACLES_IN_OBSERVATION = 4
 FRAME_STACK = 1
@@ -324,9 +325,10 @@ class GCSafetyGymBase(SafetyGymBase):
         self.plot_only_start_goal_pose = PLOT_ONLY_START_GOAL_POSE
         # set difficulty level
         level = DIFFICULTY_LEVEL
+        self.train_dataset = {}
         robot_name = "GC" + self.robot_name
-        difficulty_config = env_config[robot_name]["difficulty"][level]
-        floor_lb, floor_ub = np.array(difficulty_config[1], dtype=np.float32)
+        self.train_dataset["difficulty_config"] = env_config[robot_name]["difficulty"][level]
+        self.train_dataset["floor_lb"], self.train_dataset["floor_ub"] = np.array(self.train_dataset["difficulty_config"][1], dtype=np.float32)
         if CUSTOM_DATASET:
             assert level == 1, "didnt implement other"
             """
@@ -337,26 +339,26 @@ class GCSafetyGymBase(SafetyGymBase):
             self.custom_dataset = {}
             #self.fixed_init_and_goal = True # i dont know why this
             self.task = 1
-            task_1_start = [floor_lb[0], floor_lb[1]]
-            task_1_goal = [floor_ub[0], floor_ub[1]]
-            task_2_start = [floor_lb[0], floor_ub[1]]
-            task_2_goal = [floor_ub[0], floor_lb[1]]
+            task_1_start = [self.train_dataset["floor_lb"][0], self.train_dataset["floor_lb"][1]]
+            task_1_goal = [self.train_dataset["floor_ub"][0], self.train_dataset["floor_ub"][1]]
+            task_2_start = [self.train_dataset["floor_lb"][0], self.train_dataset["floor_ub"][1]]
+            task_2_goal = [self.train_dataset["floor_ub"][0], self.train_dataset["floor_lb"][1]]
             self.custom_dataset["task1"] = [task_1_start, task_1_goal]
             self.custom_dataset["task2"] = [task_2_start, task_2_goal]
-        fixed_hazards = env_config[robot_name]["fixed_hazards"]
-        hazards_placements = None
+        fixed_hazards = FIXED_HAZARDS
+        self.train_dataset["hazards_placements"] = None
         if fixed_hazards:
             if level > 1:
                 assert 1 == 0, "didnt implement other"
-            hazards_locations = env_config[robot_name]["fixed_hazard_poses"][level]
+            self.train_dataset["hazards_locations"] = env_config[robot_name]["fixed_hazard_poses"][level]
         else:
-            hazards_locations = []
+            self.train_dataset["hazards_locations"] = []
         self.update_env_config({
-            "hazards_num": difficulty_config[0],
-            "placements_extents": np.concatenate([floor_lb, floor_ub]).tolist(),
+            "hazards_num": self.train_dataset["difficulty_config"][0],
+            "placements_extents": np.concatenate([self.train_dataset["floor_lb"], self.train_dataset["floor_ub"]]).tolist(),
             "hazards_keepout": 0.45,
-            "hazards_placements": hazards_placements,
-            'hazards_locations': hazards_locations,
+            "hazards_placements": self.train_dataset["hazards_placements"],
+            'hazards_locations': self.train_dataset["hazards_locations"],
             "_seed": 42,
         })
         self.obstacle_in_obs = OBSTACLES_IN_OBSERVATION
@@ -384,7 +386,6 @@ class GCSafetyGymBase(SafetyGymBase):
             "clearance_is_enough": gym.spaces.Box(0.0, 1.0, (1,), np.float32)
         })
     
-    #def compute_rewards(self, achieved_goal, desired_goal, info):
     def compute_rewards(self, new_actions, new_next_obs_dict):
         return self.time_step_reward * np.ones_like(new_actions[:, 0])
             
@@ -408,6 +409,20 @@ class GCSafetyGymBase(SafetyGymBase):
         return output        
         # obs = self.env.obs()
         # return obs["goal_lidar"] 
+    
+    def set_test_env(self):
+        init = 0.9 * self.train_dataset["floor_lb"]
+        goal = np.array([0.9, 0.8]) * self.train_dataset["floor_ub"]
+        self.update_env_config({
+            "robot_locations": [init.tolist()],
+            "goal_locations": [goal.tolist()]
+        })
+    
+    def set_eval_env(self):
+        self.update_env_config({
+            "robot_locations": [],
+            "goal_locations": []
+        })
     
     def set_subgoal_pos(self, subgoal_related_pos):
         self.subgoal_pos = []
@@ -442,6 +457,8 @@ class GCSafetyGymBase(SafetyGymBase):
         return obs
     
     def step(self, action: np.ndarray):
+        # safety gym bug assert
+        assert action.shape == self.action_space.low.shape
         s, r, done, info = self.env.step(action)
 
         # As of now use safety gym info['cost'] to detect collisions
@@ -467,12 +484,7 @@ class GCSafetyGymBase(SafetyGymBase):
 
         obs = self.get_obs(arrive)
         obs["collision"] = collision
-        # if arrive:
-        #     # if the robot meets goal, the goal will be reset immediately
-        #     # this can cause the goal observation has large jumps and affect Lyapunov function
-        #     #obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
-        #     obs["desired_goal"][:self.num_relevant_dim] = obs["observation"][:self.num_relevant_dim]
-
+        
         # test
         shift_v = int(obs["observation"].shape[0] / self.frame_stack * (self.frame_stack - 1))
         test_reward = np.sqrt(np.power(np.array(obs["observation"] - obs["desired_goal"])[shift_v : shift_v+2], 2).sum(-1, keepdims=True)) # distance: next_state to goal

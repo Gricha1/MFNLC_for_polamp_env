@@ -458,7 +458,6 @@ class SafetyRis(SAC):
         debug_info["subgoal_net_losses"] = []
         debug_info["advs"] = []
         debug_info["Q"] = []
-        debug_info["D_KL"] = []
         debug_info["target_subgoal_V"] = []
         debug_info["subgoal_V"] = []
         debug_info["target_Q"] = []
@@ -466,10 +465,6 @@ class SafetyRis(SAC):
         debug_info["v(s_g, g)"] = []
 
         for gradient_step in range(gradient_steps):
-            # if self.custom_replay_buffer.num_steps_can_sample() < 10000:
-            #     print(f"------ The buffer is empty ------: {self.custom_replay_buffer.num_steps_can_sample()}")
-            #     break
-            
             state, action, reward, cost, next_state, done, goal = self.sample_and_preprocess_batch(
                 self.custom_replay_buffer, 
                 env=self.env,
@@ -522,7 +517,6 @@ class SafetyRis(SAC):
                 actor_loss = (self.sac_alpha * log_prob - Q).mean()
             else:
                 actor_loss = (self.alpha*D_KL - Q).mean()
-                debug_info["D_KL"].append(D_KL.mean().item())
             actor_losses.append(actor_loss.item())
             # Optimize the actor 
             self.actor_optimizer.zero_grad()
@@ -546,7 +540,7 @@ class SafetyRis(SAC):
         if not self.sac:      
             self.logger.record("train/subgoal_net_loss", np.mean(debug_info["subgoal_net_losses"]))
             self.logger.record("train/adv", np.mean(debug_info["advs"]))
-            self.logger.record("train/D_KL", np.mean(debug_info["D_KL"]))
+            self.logger.record("train/D_KL", D_KL.mean().item())
             self.logger.record("train/target_subgoal_V", np.mean(debug_info["target_subgoal_V"]))
             self.logger.record("train/subgoal_V", np.mean(debug_info["subgoal_V"]))
             self.logger.record("train/v(s, s_g)", np.mean(debug_info["v(s, s_g)"]))
