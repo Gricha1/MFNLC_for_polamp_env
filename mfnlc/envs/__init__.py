@@ -7,7 +7,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from mfnlc.config import env_config
 from .base import EnvBase
 from .car import CarNav, GCCarNav
-from .doggo import DoggoNav
+from .doggo import DoggoNav, GCDoggoNav
 from .nav import Continuous2DNav
 from .point import PointNav, GCPointNav
 
@@ -29,8 +29,6 @@ def get_env(env_name: str):
         env = TimeLimit(Continuous2DNav(no_obstacle=True), env_config[robot_name]["max_step"])
     elif env_name == "Point-no-obst":
         env = TimeLimit(PointNav(no_obstacle=True), env_config[robot_name]["max_step"])
-    #elif env_name == "Polamp_env-no-obst":
-    #    env = TimeLimit(PolampEnv(no_obstacle=True), env_config[robot_name]["max_step"])
     elif env_name == "Car-no-obst":
         env = TimeLimit(CarNav(no_obstacle=True), env_config[robot_name]["max_step"])
     elif env_name == "Doggo-no-obst":
@@ -51,6 +49,10 @@ def get_env(env_name: str):
                          max_episode_steps=env_config[robot_name]["max_step"])
     elif env_name == "GCCar":
         env = GCCarNav(end_on_collision=True, # True
+                         no_obstacle=False, # False
+                         max_episode_steps=env_config[robot_name]["max_step"])
+    elif env_name == "GCDoggo":
+        env = GCDoggoNav(end_on_collision=True, # True
                          no_obstacle=False, # False
                          max_episode_steps=env_config[robot_name]["max_step"])
     else:

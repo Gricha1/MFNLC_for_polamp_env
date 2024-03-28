@@ -176,6 +176,29 @@ env_config = {
                                    [0, 0], [1.3, 0],
                                    [-1.8, 0], [-0.8, 1.8]]}
     },
+    "GCDoggo": {
+        "max_step": 600,
+        "goal_dim": 2,
+        "state_dim": 0,
+        "robot_radius": 0.3,
+        "sink": None,
+        "env_prop": {
+            "vases_num": 0,
+            "render_lidar_markers": False,
+            'floor_display_mode': True
+        },
+        "difficulty": {
+            # number of obstacle | map size
+            0: [0, [[-2, -2], [2, 2]]],
+            1: [8, [[-2, -2], [2, 2]]],
+            2: [32, [[-4, -4], [4, 4]]],
+            3: [128, [[-8, -8], [8, 8]]]
+        },
+        "fixed_hazard_poses": {1: [[-1.2, -1], [0, -1.4], 
+                                   [0, 1.1], [1, 1.8], 
+                                   [0, 0], [1.3, 0],
+                                   [-1.8, 0], [-0.8, 1.8]]}
+    },
 }
 
 
