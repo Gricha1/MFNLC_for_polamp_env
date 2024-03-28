@@ -17,12 +17,13 @@ from collections import deque
 CUSTOM_DATASET = False
 FIXED_HAZARDS = False
 DIFFICULTY_LEVEL = 1
-OBSTACLES_IN_OBSERVATION = 4
+OBSTACLES_IN_OBSERVATION = 8
 FRAME_STACK = 1
 COLLISION_PENALTY = -60
 ENV_BOUNDS = False
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
+PLOT_SUBGOAL_s_to_sg = False
 
 class EnvBase(Env):
     metadata = {"render.modes": ["human", "rgb_array"]}
@@ -317,12 +318,13 @@ class GCSafetyGymBase(SafetyGymBase):
         self.arrive_reward = 0
         self.time_step_reward = -1
         self.subgoal_pos = None
+        self.subgoal_s_to_sg_pos = None
         self.obstacle_observation = None
         self.obstacle_goal_observation = None
         self.render_info = {}
         self.render_info["fig"] = None
         self.render_info["ax_states"] = None
-        self.plot_only_start_goal_pose = PLOT_ONLY_START_GOAL_POSE
+        self.plot_only_start_goal_pose = PLOT_ONLY_START_GOAL_POSE # use in envs/train/obstacles/ris/base.py
         # set difficulty level
         level = DIFFICULTY_LEVEL
         self.train_dataset = {}
@@ -424,11 +426,17 @@ class GCSafetyGymBase(SafetyGymBase):
             "goal_locations": []
         })
     
-    def set_subgoal_pos(self, subgoal_related_pos):
-        self.subgoal_pos = []
-        shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
-        self.subgoal_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())
-        self.subgoal_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
+    def set_subgoal_pos(self, subgoal_related_pos, s_to_sg=False):
+        if s_to_sg:
+            self.subgoal_s_to_sg_pos = []
+            shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
+            self.subgoal_s_to_sg_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())
+            self.subgoal_s_to_sg_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
+        else:
+            self.subgoal_pos = []
+            shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
+            self.subgoal_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())
+            self.subgoal_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
 
     def reset(self, **kwargs):
         if CUSTOM_DATASET:
@@ -451,6 +459,7 @@ class GCSafetyGymBase(SafetyGymBase):
             assert self.hazards_num > 0, "env with obstacles should have obstacles"
         
         self.subgoal_pos = None
+        self.subgoal_s_to_sg_pos = None
         obs = super().reset(**kwargs)
         assert not obs["collision"], "initial state in collision!!!"
         self.previous_min_goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
@@ -612,6 +621,12 @@ class GCSafetyGymBase(SafetyGymBase):
                 if add_subgoal_values:
                     self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_s_sg"])), dubug_info["v_s_sg"])
                     self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_sg_g"])), dubug_info["v_sg_g"])
+            if PLOT_SUBGOAL_s_to_sg and self.subgoal_s_to_sg_pos is not None:
+                x = self.subgoal_s_to_sg_pos[0]
+                y = self.subgoal_s_to_sg_pos[1]
+                circle_robot = plt.Circle((x, y), radius=self.robot_radius / 3, color="orange", alpha=0.5)
+                self.render_info["ax_states"].add_patch(circle_robot)
+
             # goal
             x = self.env.goal_pos[0]
             y = self.env.goal_pos[1]

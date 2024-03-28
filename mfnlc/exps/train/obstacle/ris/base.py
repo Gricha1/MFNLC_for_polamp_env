@@ -153,12 +153,14 @@ def train(env_name,
                         to_torch_goal = th.FloatTensor(goal).to(default_device).unsqueeze(0)
                         subgoal_distribution = self.model.subgoal_net(to_torch_state, to_torch_goal)
                         subgoal = subgoal_distribution.loc
+                        s_to_sg_subgoal = self.model.subgoal_net(to_torch_state, subgoal).loc
                         if _locals["episode_counts"][_locals["i"]] == 0:
                             debug_v_s_sg.append(self.model.value(to_torch_state, subgoal).cpu().item())
                             debug_v_sg_g.append(self.model.value(subgoal, subgoal).cpu().item())
                             dubug_info["v_s_sg"] = debug_v_s_sg
                             dubug_info["v_sg_g"] = debug_v_sg_g
                     _locals["env"].envs[0].set_subgoal_pos(subgoal)
+                    _locals["env"].envs[0].set_subgoal_pos(s_to_sg_subgoal, s_to_sg=True)
                     # dubug subgoal
                     if _locals["episode_counts"][_locals["i"]] == 0 and dubug_info["t"] == 1:
                         print("state:", state)

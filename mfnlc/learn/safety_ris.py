@@ -114,6 +114,7 @@ class SafetyRis(SAC):
         self.new_policy = policy
         self.critic_max_grad_norm = critic_max_grad_norm
         self.actor_max_grad_norm = actor_max_grad_norm
+        self.adaptive_collision_reward = False
 
         # subgoal
         self.subgoal_net = subgoal_net
@@ -200,8 +201,12 @@ class SafetyRis(SAC):
         #     1.0 * (np.sqrt(np.power(np.array(next_state_batch)[:, -e_v:-i_v], 2).sum(-1, keepdims=True)) > 0.1)
         done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch)
         # done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch // (1.0 + 1.0))
-        reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward)) * (1.0 - collision_batch) \
-                        + (env.envs[0].env.collision_penalty) * collision_batch
+        if not self.adaptive_collision_reward or (self.adaptive_collision_reward and self.num_timesteps < 300_000):
+            reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward)) * (1.0 - collision_batch) \
+                            + (env.envs[0].env.collision_penalty) * collision_batch
+        else:
+            reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward)) * (1.0 - collision_batch) \
+                            + (env.envs[0].env.collision_penalty - 200) * collision_batch
 
         cost_batch = (- np.ones_like(done_batch) * 0)
         """
@@ -502,7 +507,15 @@ class SafetyRis(SAC):
                 
             # Optimize the subgoal policy
             if not self.sac:
-                self.train_highlevel_policy(state, goal, subgoal, debug_info) # test
+                if not self.adaptive_collision_reward or (self.adaptive_collision_reward and self.num_timesteps < 300_000):
+                    self.train_highlevel_policy(state, goal, subgoal, debug_info) # test
+                else:
+                    debug_info["subgoal_net_losses"].append(0)
+                    debug_info["advs"].append(0)
+                    debug_info["target_subgoal_V"].append(0)
+                    debug_info["subgoal_V"].append(0)
+                    debug_info["v(s, s_g)"].append(0)
+                    debug_info["v(s_g, g)"].append(0)
             
             """ Actor """
             if self.sac:
