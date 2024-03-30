@@ -624,8 +624,8 @@ class SafetyRis(SAC):
             self.logger.record("train/v(s, s_g)", np.mean(debug_info["v(s, s_g)"]))
             self.logger.record("train/v(s_g, g)", np.mean(debug_info["v(s_g, g)"]))
         if self.safety:
-            self.logger.record("train/Q", np.mean(debug_info["Q_cost"])) 
-            self.logger.record("train/target_Q", np.mean(debug_info["target_Q_cost"]))
+            self.logger.record("train/Q_cost", np.mean(debug_info["Q_cost"])) 
+            self.logger.record("train/target_Q_cost", np.mean(debug_info["target_Q_cost"]))
             self.logger.record("train/lambda_loss", np.mean(debug_info["lambda_loss"]) if len(debug_info["lambda_loss"]) > 0 else 0)
             self.logger.record("train/lambda_multiplier", np.mean(debug_info["lambda_multiplier"]))
 
