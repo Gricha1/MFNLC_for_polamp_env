@@ -580,7 +580,8 @@ class SafetyRis(SAC):
             if self.safety:
                 Q_cost = self.critic_cost(state, action, goal)
                 Q_cost = th.min(Q_cost, -1, keepdim=True)[0]
-                lambda_multiplier = th.nn.functional.softplus(self.lambda_coefficient)
+                with th.no_grad():
+                    lambda_multiplier = th.nn.functional.softplus(self.lambda_coefficient).detach()
                 debug_info["lambda_multiplier"].append(lambda_multiplier.item())
             
             if self.sac:
