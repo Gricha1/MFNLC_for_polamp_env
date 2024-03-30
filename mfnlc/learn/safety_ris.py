@@ -127,6 +127,7 @@ class SafetyRis(SAC):
         # additional buffer
         self.ep_collision_buffer = deque(maxlen=100)
         self.ep_min_distance_buffer = deque(maxlen=100)
+        self.ep_cost_buffer = deque(maxlen=100)
 
         # path builder for HER
         vectorized = False
@@ -146,7 +147,7 @@ class SafetyRis(SAC):
         )
 
         # safety
-        self.safety = False
+        self.safety = True
 
         # sac
         self.sac = False
@@ -176,6 +177,21 @@ class SafetyRis(SAC):
         self.actor_optimizer = th.optim.Adam(self.actor.parameters(), lr=self.pi_lr)
         self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=self.q_lr)
 
+        if self.safety:
+            cost_limit = 0.5
+            max_episode_steps = 600
+            self.cost_limit = cost_limit
+			# we should use the timestep_cost_limit
+            self.timestep_cost_limit = cost_limit * (1 - self.gamma ** max_episode_steps) / (1 - self.gamma) / max_episode_steps
+            print(f"timestep_cost_limit: {self.timestep_cost_limit}")
+            self.critic_cost = deepcopy(self.policy.critic)
+            self.critic_cost_target = deepcopy(self.critic)
+            self.critic_cost_optimizer = th.optim.Adam(self.critic_cost.parameters(), lr=self.q_lr)
+            self.update_lambda = 1000
+            lambda_initialization = 0.1
+            self.lambda_coefficient = th.tensor(lambda_initialization, requires_grad=True)
+            self.lambda_optimizer = th.optim.Adam([self.lambda_coefficient], lr=5e-4)
+
     
     def sample_and_preprocess_batch(self, replay_buffer, env, batch_size=256, device=th.device("cuda")):
         # Extract 
@@ -203,7 +219,7 @@ class SafetyRis(SAC):
         reward_batch = (- np.ones_like(done_batch) * (-env.envs[0].env.time_step_reward)) * (1.0 - collision_batch) \
                         + (env.envs[0].env.collision_penalty) * collision_batch
 
-        cost_batch = (- np.ones_like(done_batch) * 0)
+        cost_batch = clearance_is_enough_batch
         """
         if env.static_env:
             velocity_array = np.abs(next_state_batch[:, 3:4])
@@ -290,6 +306,7 @@ class SafetyRis(SAC):
             maybe_is_success = info.get("is_success")
             maybe_is_collision = info.get("collision")
             min_goal_distance = info.get("min_goal_distance")
+            episode_cost = info.get("episode_cost")
             if maybe_ep_info is not None:
                 self.ep_info_buffer.extend([maybe_ep_info])
             if maybe_is_success is not None and dones[idx]:
@@ -298,6 +315,8 @@ class SafetyRis(SAC):
                 self.ep_collision_buffer.append(maybe_is_collision)
             if min_goal_distance is not None and dones[idx]:
                 self.ep_min_distance_buffer.append(min_goal_distance)
+            if episode_cost is not None and dones[idx]:
+                self.ep_cost_buffer.append(episode_cost)
     
     def _dump_logs(self) -> None:
         """
@@ -321,6 +340,8 @@ class SafetyRis(SAC):
             self.logger.record("rollout/train_collision_rate", safe_mean(self.ep_collision_buffer))
         if len(self.ep_min_distance_buffer) > 0:
             self.logger.record("rollout/avg_min_distance", safe_mean(self.ep_min_distance_buffer))
+        if len(self.ep_cost_buffer) > 0:
+            self.logger.record("rollout/cumulative_cost", safe_mean(self.ep_cost_buffer))
         # Pass the number of timesteps for tensorboard
         self.logger.dump(step=self.num_timesteps)
 
@@ -388,7 +409,19 @@ class SafetyRis(SAC):
         # Save the unnormalized observation
         if self._vec_normalize_env is not None:
             self._last_original_obs = new_obs_
-        
+    
+    def train_lagrangian(self, state, action, goal, debug_info={}):
+        Q_cost = self.critic_cost(state, action, goal)
+        Q_cost = th.min(Q_cost, -1, keepdim=True)[0]
+        Q_cost = th.clamp(Q_cost, min=0.0)
+        violation = Q_cost - self.timestep_cost_limit
+        lambda_loss =  self.lambda_coefficient * violation.detach()
+        lambda_loss = -lambda_loss.mean()
+        self.lambda_optimizer.zero_grad()
+        lambda_loss.backward()
+        self.lambda_optimizer.step()
+        debug_info["lambda_loss"].append(lambda_loss.mean().item())
+
     def train_highlevel_policy(self, state, goal, subgoal, debug_info={}):
 		# Compute subgoal distribution 
         batch_size = state.shape[0] # 2048
@@ -463,6 +496,11 @@ class SafetyRis(SAC):
         debug_info["target_Q"] = []
         debug_info["v(s, s_g)"] = []
         debug_info["v(s_g, g)"] = []
+        if self.safety:
+            debug_info["Q_cost"] = []
+            debug_info["target_Q_cost"] = []
+            debug_info["lambda_loss"] = []
+            debug_info["lambda_multiplier"] = []
 
         for gradient_step in range(gradient_steps):
             state, action, reward, cost, next_state, done, goal = self.sample_and_preprocess_batch(
@@ -484,6 +522,11 @@ class SafetyRis(SAC):
                     target_Q -= self.sac_alpha * next_log_prob
                 target_Q = th.min(target_Q, -1, keepdim=True)[0]
                 target_Q = reward + (1.0-done) * self.gamma*target_Q
+                if self.safety:
+                    target_Q_cost = self.critic_cost_target(next_state, next_action, goal)
+                    target_Q_cost = th.min(target_Q_cost, -1, keepdim=True)[0]
+                    target_Q_cost = th.clamp(target_Q_cost, min=0.0)
+                    target_Q_cost = cost + (1.0-done) * self.gamma*target_Q_cost
 
             # Compute critic loss
             Q = self.critic(state, action, goal)
@@ -499,11 +542,33 @@ class SafetyRis(SAC):
                 if self.critic_max_grad_norm > 0:
                     th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.critic_max_grad_norm)
             self.critic_optimizer.step()
+
+            if self.safety:
+                # Compute safety critic loss
+                Q_cost = self.critic_cost(state, action, goal)
+                critic_cost_loss = 0.5 * (Q_cost - target_Q_cost).pow(2).sum(-1).mean()
+                debug_info["Q_cost"].append(Q_cost.mean().item())
+                debug_info["target_Q_cost"].append(target_Q_cost.mean().item())
+
+                # Optimize the safety critic
+                self.critic_cost_optimizer.zero_grad()
+                critic_cost_loss.backward()
+                # if self.max_grad_norm > 0:
+                #     th.nn.utils.clip_grad_norm_(self.critic_cost.parameters(), max_norm=self.max_grad_norm)
+                # self.critic_cost_optimizer.step()
+
+                # with th.no_grad():
+                #     critic_cost_grad_norm = (
+                #     sum(p.grad.data.norm(2).item() ** 2 for p in self.critic_cost.parameters() if p.grad is not None) ** 0.5
+                #     )
                 
             # Optimize the subgoal policy
             if not self.sac:
                 self.train_highlevel_policy(state, goal, subgoal, debug_info) # test
             
+            if self.safety and (self.num_timesteps - 1) % self.update_lambda == 0:
+                self.train_lagrangian(state, action, goal, debug_info)
+
             """ Actor """
             if self.sac:
                 action, log_prob, _ = self.actor.sample(state, goal)
@@ -512,11 +577,23 @@ class SafetyRis(SAC):
             # Compute actor loss
             Q = self.critic(state, action, goal)
             Q = th.min(Q, -1, keepdim=True)[0]
+            if self.safety:
+                Q_cost = self.critic_cost(state, action, goal)
+                Q_cost = th.min(Q_cost, -1, keepdim=True)[0]
+                lambda_multiplier = th.nn.functional.softplus(self.lambda_coefficient)
+                debug_info["lambda_multiplier"].append(lambda_multiplier.item())
             
             if self.sac:
-                actor_loss = (self.sac_alpha * log_prob - Q).mean()
+                if self.safety:
+                    actor_loss = (self.sac_alpha * log_prob - Q + lambda_multiplier * Q_cost).mean()
+                else:
+                    actor_loss = (self.sac_alpha * log_prob - Q).mean()
             else:
-                actor_loss = (self.alpha*D_KL - Q).mean()
+                if self.safety:
+                    actor_loss = (self.alpha*D_KL - Q + lambda_multiplier * Q_cost).mean()
+                else:
+                    actor_loss = (self.alpha*D_KL - Q).mean()
+            
             actor_losses.append(actor_loss.item())
             # Optimize the actor 
             self.actor_optimizer.zero_grad()
@@ -530,6 +607,7 @@ class SafetyRis(SAC):
             if gradient_step % self.target_update_interval == 0:
                 polyak_update(self.critic.parameters(), self.critic_target.parameters(), self.tau)
                 polyak_update(self.actor.parameters(), self.actor_target.parameters(), self.tau) # test
+                polyak_update(self.critic_cost.parameters(), self.critic_cost_target.parameters(), self.tau)
         self._n_updates += gradient_steps
 
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
@@ -545,6 +623,11 @@ class SafetyRis(SAC):
             self.logger.record("train/subgoal_V", np.mean(debug_info["subgoal_V"]))
             self.logger.record("train/v(s, s_g)", np.mean(debug_info["v(s, s_g)"]))
             self.logger.record("train/v(s_g, g)", np.mean(debug_info["v(s_g, g)"]))
+        if self.safety:
+            self.logger.record("train/Q", np.mean(debug_info["Q_cost"])) 
+            self.logger.record("train/target_Q", np.mean(debug_info["target_Q_cost"]))
+            self.logger.record("train/lambda_loss", np.mean(debug_info["lambda_loss"]) if len(debug_info["lambda_loss"]) > 0 else 0)
+            self.logger.record("train/lambda_multiplier", np.mean(debug_info["lambda_multiplier"]))
 
     def save(self, folder, save_optims=False):
         th.save(self.actor.state_dict(),		 folder + "actor.pth")
