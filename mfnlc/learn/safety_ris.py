@@ -607,7 +607,8 @@ class SafetyRis(SAC):
             if gradient_step % self.target_update_interval == 0:
                 polyak_update(self.critic.parameters(), self.critic_target.parameters(), self.tau)
                 polyak_update(self.actor.parameters(), self.actor_target.parameters(), self.tau) # test
-                polyak_update(self.critic_cost.parameters(), self.critic_cost_target.parameters(), self.tau)
+                if self.safety:
+                    polyak_update(self.critic_cost.parameters(), self.critic_cost_target.parameters(), self.tau)
         self._n_updates += gradient_steps
 
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
