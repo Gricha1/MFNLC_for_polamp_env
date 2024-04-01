@@ -8,7 +8,7 @@ from mfnlc.config import env_config
 from .base import EnvBase
 from .car import CarNav, GCCarNav
 from .doggo import DoggoNav, GCDoggoNav
-from .nav import Continuous2DNav
+from .nav import Continuous2DNav, GCContinuous2DNav, NavCustomTimeLimit
 from .point import PointNav, GCPointNav
 
 
@@ -43,6 +43,10 @@ def get_env(env_name: str):
     elif env_name == "Doggo-eval":
         env = DoggoNav(end_on_collision=True)
     # goal conditioned envs
+    elif env_name == "GCNav":
+        env = NavCustomTimeLimit(end_on_collision=True, # True
+                                 no_obstacle=False, # False
+                                 max_episode_steps=env_config[robot_name]["max_step"])
     elif env_name == "GCPoint":
         env = GCPointNav(end_on_collision=True, # True
                          no_obstacle=False, # False

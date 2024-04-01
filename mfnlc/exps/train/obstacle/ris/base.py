@@ -142,7 +142,11 @@ def train(env_name,
                     dubug_info["a0"] = _locals["actions"][0][0]
                     dubug_info["a1"] = _locals["actions"][0][1]
                     dubug_info["acc_reward"] += _locals["reward"]
-                    dubug_info["acc_cost"] += _locals["info"]["cost"]
+                    # BUG TODO
+                    try:
+                        dubug_info["acc_cost"] += _locals["info"]["cost"]
+                    except:
+                        dubug_info["acc_cost"] += 0
                     dubug_info["v_s_sg"] = []
                     dubug_info["v_sg_g"] = []
                     dubug_info["t"] += 1

@@ -23,7 +23,7 @@ COLLISION_PENALTY = -60
 ENV_BOUNDS = False
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
-PLOT_SUBGOAL_s_to_sg = False
+PLOT_SUBGOAL_s_to_sg = True
 
 class EnvBase(Env):
     metadata = {"render.modes": ["human", "rgb_array"]}
@@ -511,9 +511,6 @@ class GCSafetyGymBase(SafetyGymBase):
 
         return obs, reward, done, info
     
-    def robot_goal_pos(self):
-        return np.zeros(shape=self.num_relevant_dim)
-
     def robot_goal_obs(self) -> np.ndarray:
         """
             'accelerometer', 'velocimeter', 'gyro', 
