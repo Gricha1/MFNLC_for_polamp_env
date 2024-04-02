@@ -300,12 +300,16 @@ def train(env_name,
     critic = EnsembleCritic(state_dim, action_dim, 
                             hidden_dims=new_policy_kwargs["net_arch"],
                             n_Q=2).to(default_device)
+    critic_cost = EnsembleCritic(state_dim, action_dim, 
+                            hidden_dims=new_policy_kwargs["net_arch"],
+                            n_Q=2).to(default_device)
     subgoal_net = LaplacePolicy(state_dim=state_dim, 
                                 goal_dim=state_dim, 
                                 hidden_dims=new_policy_kwargs["net_arch"]).to(default_device)
     policy = CustomActorCriticPolicy(default_device)
     policy.actor = actor
     policy.critic = critic
+    policy.critic_cost = critic_cost
 
     model = SafetyRis(
         policy,
