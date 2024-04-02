@@ -184,8 +184,8 @@ class SafetyRis(SAC):
 			# we should use the timestep_cost_limit
             self.timestep_cost_limit = cost_limit * (1 - self.gamma ** max_episode_steps) / (1 - self.gamma) / max_episode_steps
             print(f"timestep_cost_limit: {self.timestep_cost_limit}")
-            self.critic_cost = deepcopy(self.policy.critic)
-            self.critic_cost_target = deepcopy(self.critic)
+            self.critic_cost = self.policy.critic_cost
+            self.critic_cost_target = deepcopy(self.critic_cost)
             self.critic_cost_optimizer = th.optim.Adam(self.critic_cost.parameters(), lr=self.q_lr)
             self.update_lambda = 1000
             lambda_initialization = 0.1
@@ -220,6 +220,7 @@ class SafetyRis(SAC):
                         + (env.envs[0].env.collision_penalty) * collision_batch
 
         cost_batch = clearance_is_enough_batch
+        # cost_batch = clearance_is_enough_batch * (1.0 - collision_batch) + (-env.envs[0].env.collision_penalty) * collision_batch
         """
         if env.static_env:
             velocity_array = np.abs(next_state_batch[:, 3:4])
@@ -555,7 +556,7 @@ class SafetyRis(SAC):
                 critic_cost_loss.backward()
                 # if self.max_grad_norm > 0:
                 #     th.nn.utils.clip_grad_norm_(self.critic_cost.parameters(), max_norm=self.max_grad_norm)
-                # self.critic_cost_optimizer.step()
+                self.critic_cost_optimizer.step()
 
                 # with th.no_grad():
                 #     critic_cost_grad_norm = (
