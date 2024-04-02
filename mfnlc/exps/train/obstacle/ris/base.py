@@ -113,6 +113,7 @@ def train(env_name,
             self._n_eval_episodes = n_eval_episodes
             self._deterministic = deterministic
             self._is_success_buffer = []
+            self._episode_costs = []
             self.old_success_rate = None
 
         def _on_step(self) -> bool:
@@ -126,6 +127,7 @@ def train(env_name,
                 if validate_subgoal_video:
                     positions_screens = []
                 self._is_success_buffer = []
+                self._episode_costs = []
                 self.collisions = []
                 dubug_info = {"acc_reward" : 0, "t": 0, "acc_cost" : 0}
                 debug_v_s_sg = []
@@ -142,7 +144,7 @@ def train(env_name,
                     dubug_info["a0"] = _locals["actions"][0][0]
                     dubug_info["a1"] = _locals["actions"][0][1]
                     dubug_info["acc_reward"] += _locals["reward"]
-                    dubug_info["acc_cost"] += _locals["info"]["cost"]
+                    dubug_info["acc_cost"] += _locals["info"]["clearance_is_enough"]
                     dubug_info["v_s_sg"] = []
                     dubug_info["v_sg_g"] = []
                     dubug_info["t"] += 1
@@ -187,6 +189,9 @@ def train(env_name,
                         maybe_is_success = _locals["info"].get("goal_is_arrived")
                         if maybe_is_success is not None:
                             self._is_success_buffer.append(maybe_is_success)
+                        episode_cost = _locals["info"].get("episode_cost")
+                        if episode_cost is not None:
+                            self._episode_costs.append(episode_cost)
 
                 episode_rewards, episode_lengths = evaluate_policy(
                     self.model,
@@ -232,6 +237,18 @@ def train(env_name,
                 else:
                     success_rate = np.mean(self._is_success_buffer)
                     self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_success_rate", 0)
+                
+                if len(self._episode_costs) > 0:
+                    mean_cost = np.mean(self._episode_costs)
+                    max_cost = np.max(self._episode_costs)
+                    min_cost = np.min(self._episode_costs)
+                    self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_mean_cost", mean_cost)
+                    self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_max_cost", max_cost)
+                    self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_min_cost", min_cost)
+                else:
+                    self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_mean_cost", 0)
+                    self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_max_cost", 0)
+                    self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_min_cost", 0)
                 
                 return success_rate
             
