@@ -45,6 +45,8 @@ def train(env_name,
           sde_sample_freq = -1,
           use_sde_at_warmup = False,
           new_policy_kwargs: Optional[Dict[str, Any]] = None, # RIS
+          use_encoder=False,
+          encoder_dim=20,
           h_lr = 1e-3, # RIS
           q_lr = 1e-3, # RIS
           pi_lr = 1e-4, # RIS
@@ -164,8 +166,9 @@ def train(env_name,
                                 debug_v_sg_g.append(self.model.value(subgoal, subgoal).cpu().item())
                                 dubug_info["v_s_sg"] = debug_v_s_sg
                                 dubug_info["v_sg_g"] = debug_v_sg_g
-                        _locals["env"].envs[0].set_subgoal_pos(subgoal)
-                        _locals["env"].envs[0].set_subgoal_pos(s_to_sg_subgoal, s_to_sg=True)
+                        if self._eval_env.plot_subgoal:
+                            _locals["env"].envs[0].set_subgoal_pos(subgoal)
+                            _locals["env"].envs[0].set_subgoal_pos(s_to_sg_subgoal, s_to_sg=True)
                         # dubug subgoal
                         if _locals["episode_counts"][_locals["i"]] == 0 and dubug_info["t"] == 1:
                             print("state:", state)
@@ -300,8 +303,12 @@ def train(env_name,
         wandb.config["model_save_path"] = video_recorder.model_save_path
         
     print("Ending")
-    state_dim = env_obs_dim
-    goal_dim = env_goal_dim
+    env_state_dim = env_obs_dim
+    if use_encoder:
+        state_dim = encoder_dim
+    else:
+        state_dim = env_obs_dim
+        
     actor = GaussianPolicy(state_dim, action_dim, 
                            hidden_dims=new_policy_kwargs["net_arch"]).to(default_device)
     critic = EnsembleCritic(state_dim, action_dim, 
@@ -315,6 +322,8 @@ def train(env_name,
     policy.critic = critic
 
     model = SafetyRis(
+        use_encoder,
+        env_state_dim,
         policy,
         subgoal_net,
         state_dim,

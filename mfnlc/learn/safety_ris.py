@@ -21,7 +21,7 @@ from stable_baselines3.common.utils import safe_mean
 
 from mfnlc.config import default_device
 from mfnlc.learn.utils import list_dict_to_dict_list
-from mfnlc.learn.subgoal import LaplacePolicy, GaussianPolicy, EnsembleCritic, CustomActorCriticPolicy
+from mfnlc.learn.subgoal import LaplacePolicy, GaussianPolicy, EnsembleCritic, CustomActorCriticPolicy, Encoder
 from mfnlc.learn.HER import HERReplayBuffer, PathBuilder
 from collections import deque
 
@@ -29,6 +29,8 @@ from collections import deque
 class SafetyRis(SAC):
     def __init__(
         self,
+        use_encoder: bool,
+        env_state_dim: int,
         policy: CustomActorCriticPolicy,
         subgoal_net: LaplacePolicy,
         state_dim: int,
@@ -107,6 +109,13 @@ class SafetyRis(SAC):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
+
+        # encoder
+        self.use_encoder = use_encoder
+        self.enc_lr = 1e-4
+        if self.use_encoder:
+            self.encoder = Encoder(input_dim=env_state_dim, state_dim=self.state_dim).to(device)
+            self.encoder_optimizer = th.optim.Adam(self.encoder.parameters(), lr=self.enc_lr)
 
         # policy
         self.pi_lr = pi_lr
@@ -479,6 +488,15 @@ class SafetyRis(SAC):
             # Sample subgoal candidates uniformly in the replay buffer
             subgoal = th.FloatTensor(self.custom_replay_buffer.random_state_batch(batch_size)).to(self.device)
             
+            """ Encode images (if vision-based environment), use data augmentation """
+            if self.use_encoder:
+                # Stop gradient for subgoal goal and next state
+                state = self.encoder(state)
+                with th.no_grad():
+                    goal = self.encoder(goal)
+                    next_state = self.encoder(next_state)
+                    subgoal = self.encoder(subgoal)
+
 
             """ Critic """
             # Compute target Q

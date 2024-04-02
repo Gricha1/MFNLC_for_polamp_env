@@ -144,3 +144,31 @@ class CustomActorCriticPolicy:
 	def unscale_action(self, scaled_action: np.ndarray) -> np.ndarray:
 		assert (-1 <= scaled_action).all() and (scaled_action <= 1).all()
 		return scaled_action
+	
+	
+""" Encoder """
+def weights_init_encoder(m):
+	if isinstance(m, nn.Linear):
+		nn.init.orthogonal_(m.weight.data)
+		m.bias.data.fill_(0.0)
+	elif isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+		assert m.weight.size(2) == m.weight.size(3)
+		m.weight.data.fill_(0.0)
+		m.bias.data.fill_(0.0)
+		mid = m.weight.size(2) // 2
+		gain = nn.init.calculate_gain('relu')
+		nn.init.orthogonal_(m.weight.data[:, :, mid, mid], gain)
+
+class Encoder(nn.Module):
+	def __init__(self, input_dim, n_channels=3, state_dim=16, use_decoder=False):
+		super(Encoder, self).__init__()
+		self.encoder = nn.Sequential(
+			nn.Linear(input_dim, 256), nn.ReLU(),
+			nn.Linear(256, 256), nn.ReLU(),
+			nn.Linear(256, state_dim)
+		)
+		self.apply(weights_init_encoder)
+
+	def forward(self, x):
+		state = self.encoder(x)
+		return state

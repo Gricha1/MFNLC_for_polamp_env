@@ -24,6 +24,7 @@ ENV_BOUNDS = False
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
 PLOT_SUBGOAL_s_to_sg = True
+PLOT_SUBGOAL = True
 
 class EnvBase(Env):
     metadata = {"render.modes": ["human", "rgb_array"]}
@@ -324,6 +325,7 @@ class GCSafetyGymBase(SafetyGymBase):
         self.render_info = {}
         self.render_info["fig"] = None
         self.render_info["ax_states"] = None
+        self.plot_subgoal = PLOT_SUBGOAL
         self.plot_only_start_goal_pose = PLOT_ONLY_START_GOAL_POSE # use in envs/train/obstacles/ris/base.py
         # set difficulty level
         level = DIFFICULTY_LEVEL
@@ -609,7 +611,7 @@ class GCSafetyGymBase(SafetyGymBase):
             #             '-', linewidth = 4, color='red')
 
             # subgoal
-            if self.subgoal_pos is not None:
+            if self.subgoal_pos is not None and PLOT_SUBGOAL:
                 x = self.subgoal_pos[0]
                 y = self.subgoal_pos[1]
                 circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="orange", alpha=0.5)
