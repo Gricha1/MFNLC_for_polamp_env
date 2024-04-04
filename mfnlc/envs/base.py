@@ -111,7 +111,7 @@ class SafetyGymBase(EnvBase):
         # Count robot relevant observations (ignore lidar)
         self.robot_obs_size = sum([np.prod(self.env.obs_space_dict[obs_name].shape)
                                    for obs_name in self.env.obs_space_dict
-                                   if 'lidar' not in obs_name])
+                                   if ('lidar' or "magnetometer") not in obs_name])
 
         # self.obstacle_in_obs = sum([np.prod(self.env.obs_space_dict[obs_name].shape)
         #                            for obs_name in self.env.obs_space_dict
@@ -206,6 +206,7 @@ class SafetyGymBase(EnvBase):
     def robot_obs(self) -> np.ndarray:
         # only gets observation dimensions relevant to robot from safety-gym
         obs = self.env.obs()
+        self.saved_obs = copy.deepcopy(obs)
         flat_obs = np.zeros(self.robot_obs_size)
         offset = 0
 
@@ -526,14 +527,19 @@ class GCSafetyGymBase(SafetyGymBase):
             "accelerometer_z" should be 9.81, everything else is 0
         """
         # only gets observation dimensions relevant to robot from safety-gym
-        obs = self.env.obs()
+        obs = copy.deepcopy(self.saved_obs)
         flat_obs = np.zeros(self.robot_obs_size)
         offset = 0
 
         for k in sorted(self.env.obs_space_dict.keys()):
+            k_size = np.prod(obs[k].shape)
+            if self.robot_name == "Doggo":
+                if "jointpos" in k:
+                    assert obs[k].shape[0] == 2
+                    copy_obs = copy.deepcopy(obs[k])
+                    flat_obs[offset:offset + k_size] = copy_obs.flat
             if "lidar" in k:
                 continue
-            k_size = np.prod(obs[k].shape)
             if not "accelerometer" in k:
                 continue
             if "accelerometer" in k:
