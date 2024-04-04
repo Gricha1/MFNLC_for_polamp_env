@@ -158,17 +158,33 @@ def train(env_name,
                             goal = _locals["observations"]["desired_goal"]
                             to_torch_state = th.FloatTensor(state).to(default_device).unsqueeze(0)
                             to_torch_goal = th.FloatTensor(goal).to(default_device).unsqueeze(0)
-                            subgoal_distribution = self.model.subgoal_net(to_torch_state, to_torch_goal)
+                            if self.model.use_encoder:
+                                encoded_state = self.model.encoder(to_torch_state)
+                                encoded_goal = self.model.encoder(to_torch_goal)
+                            else:
+                                encoded_state = to_torch_state
+                                encoded_goal = to_torch_goal
+                            subgoal_distribution = self.model.subgoal_net(encoded_state, encoded_goal)
                             subgoal = subgoal_distribution.loc
-                            s_to_sg_subgoal = self.model.subgoal_net(to_torch_state, subgoal).loc
+                            s_to_sg_subgoal = self.model.subgoal_net(encoded_state, subgoal).loc
+                            if self.model.use_encoder:
+                                cuda_decoded_subgoal = policy.encoder.decoder(subgoal)
+                                decoded_subgoal = cuda_decoded_subgoal.cpu()
+                                cuda_decoded_s_to_sg_subgoal = policy.encoder.decoder(s_to_sg_subgoal)
+                                decoded_s_to_sg_subgoal = cuda_decoded_s_to_sg_subgoal.cpu()
+                            else:
+                                cuda_decoded_subgoal = subgoal
+                                decoded_subgoal = subgoal.cpu()
+                                cuda_decoded_s_to_sg_subgoal = s_to_sg_subgoal
+                                decoded_s_to_sg_subgoal = cuda_decoded_s_to_sg_subgoal.cpu()
                             if _locals["episode_counts"][_locals["i"]] == 0:
-                                debug_v_s_sg.append(self.model.value(to_torch_state, subgoal).cpu().item())
+                                debug_v_s_sg.append(self.model.value(encoded_state, subgoal).cpu().item())
                                 debug_v_sg_g.append(self.model.value(subgoal, subgoal).cpu().item())
                                 dubug_info["v_s_sg"] = debug_v_s_sg
                                 dubug_info["v_sg_g"] = debug_v_sg_g
                         if self._eval_env.plot_subgoal:
-                            _locals["env"].envs[0].set_subgoal_pos(subgoal)
-                            _locals["env"].envs[0].set_subgoal_pos(s_to_sg_subgoal, s_to_sg=True)
+                            _locals["env"].envs[0].set_subgoal_pos(decoded_subgoal)
+                            _locals["env"].envs[0].set_subgoal_pos(decoded_s_to_sg_subgoal, s_to_sg=True)
                         # dubug subgoal
                         if _locals["episode_counts"][_locals["i"]] == 0 and dubug_info["t"] == 1:
                             print("state:", state)

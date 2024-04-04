@@ -110,6 +110,9 @@ class CustomActorCriticPolicy:
 		with torch.no_grad():
 			state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
 			goal = torch.FloatTensor(goal).to(self.device).unsqueeze(0)
+			if self.use_encoder:
+				state = self.encoder(state)
+				goal = self.encoder(goal)
 			action, _, mean = self.actor.sample(state, goal)
 			if deterministic:
 				action = mean
@@ -167,8 +170,24 @@ class Encoder(nn.Module):
 			nn.Linear(256, 256), nn.ReLU(),
 			nn.Linear(256, state_dim)
 		)
+		self.use_decoder = use_decoder
+		if self.use_decoder:
+			self.decoder = nn.Sequential(
+				nn.Linear(state_dim, 256), nn.ReLU(),
+				nn.Linear(256, 256), nn.ReLU(),
+				nn.Linear(256, input_dim)
+			)
 		self.apply(weights_init_encoder)
 
 	def forward(self, x):
 		state = self.encoder(x)
 		return state
+	
+	def autoencoder_forward(self, x):
+		if self.use_decoder:
+			state = self.encoder(x)
+			y = self.decoder(state)
+			return y
+		else:
+			assert 1 == 0, "didnt initialize decoder"
+			return

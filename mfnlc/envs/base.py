@@ -430,11 +430,15 @@ class GCSafetyGymBase(SafetyGymBase):
     
     def set_subgoal_pos(self, subgoal_related_pos, s_to_sg=False):
         if s_to_sg:
+            if self.subgoal_s_to_sg_pos:
+                del self.subgoal_s_to_sg_pos
             self.subgoal_s_to_sg_pos = []
             shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
             self.subgoal_s_to_sg_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())
             self.subgoal_s_to_sg_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
         else:
+            if self.subgoal_pos:
+                del self.subgoal_pos
             self.subgoal_pos = []
             shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
             self.subgoal_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())

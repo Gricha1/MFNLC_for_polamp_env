@@ -14,6 +14,8 @@ def learn():
           policy_to_delete_kwargs={"net_arch": [100, 100]},
           train_freq=(1, "episode"), #train_freq=(200, "step"),
           gradient_steps=1, #gradient_steps=100,
+          use_encoder=False,
+          encoder_dim=20,
           h_lr=1e-4, # RIS
           q_lr=1e-3, # RIS
           pi_lr=1e-4, # RIS
@@ -25,8 +27,8 @@ def learn():
           fraction_goals_are_rollout_goals=0.2, # HER
           fraction_resampled_goals_are_env_goals=0.0, # HER
           fraction_resampled_goals_are_replay_buffer_goals=0.5, # HER
-          critic_max_grad_norm=3.0, # RIS
-          actor_max_grad_norm=3.0, # RIS
+          critic_max_grad_norm=5.0, # RIS
+          actor_max_grad_norm=5.0, # RIS
           n_envs=1,
           batch_size=2048,
           log_interval=4,          

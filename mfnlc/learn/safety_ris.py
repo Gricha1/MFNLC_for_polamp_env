@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union, Iterable
 import gym
 import numpy as np
 import torch as th
+import torch.nn as nn
 import time
 from stable_baselines3 import SAC
 from stable_baselines3.common.buffers import ReplayBuffer
@@ -110,13 +111,6 @@ class SafetyRis(SAC):
         self.state_dim = state_dim
         self.action_dim = action_dim
 
-        # encoder
-        self.use_encoder = use_encoder
-        self.enc_lr = 1e-4
-        if self.use_encoder:
-            self.encoder = Encoder(input_dim=env_state_dim, state_dim=self.state_dim).to(device)
-            self.encoder_optimizer = th.optim.Adam(self.encoder.parameters(), lr=self.enc_lr)
-
         # policy
         self.pi_lr = pi_lr
         self.q_lr = q_lr
@@ -124,6 +118,21 @@ class SafetyRis(SAC):
         self.critic_max_grad_norm = critic_max_grad_norm
         self.actor_max_grad_norm = actor_max_grad_norm
         self.adaptive_collision_reward = False
+
+        # encoder
+        self.use_encoder = use_encoder
+        self.use_decoder = self.use_encoder
+        assert self.use_encoder or (self.use_encoder == self.use_decoder), "use decoder only with encoder"
+        self.new_policy.use_encoder = self.use_encoder
+        self.new_policy.use_decoder = self.use_decoder
+        self.enc_lr = 1e-4
+        if self.use_encoder:
+            self.encoder = Encoder(input_dim=env_state_dim, state_dim=self.state_dim, use_decoder=self.use_decoder).to(device)
+            self.new_policy.encoder = self.encoder
+            self.encoder_optimizer = th.optim.Adam(self.encoder.parameters(), lr=self.enc_lr)
+            if self.use_decoder:
+                self.autoencoder_criterion = nn.MSELoss()
+                self.autoencoder_optimizer = th.optim.Adam(self.encoder.decoder.parameters(), lr=self.enc_lr)
 
         # subgoal
         self.subgoal_net = subgoal_net
@@ -185,7 +194,6 @@ class SafetyRis(SAC):
         self.critic_target = deepcopy(self.critic)
         self.actor_optimizer = th.optim.Adam(self.actor.parameters(), lr=self.pi_lr)
         self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=self.q_lr)
-
     
     def sample_and_preprocess_batch(self, replay_buffer, env, batch_size=256, device=th.device("cuda")):
         # Extract 
@@ -468,6 +476,8 @@ class SafetyRis(SAC):
         self.policy.set_training_mode(True)
 
         actor_losses, critic_losses = [], []
+        if self.use_decoder:
+            autoencoder_losses = []
         debug_info = {}
         debug_info["subgoal_net_losses"] = []
         debug_info["advs"] = []
@@ -491,6 +501,8 @@ class SafetyRis(SAC):
             """ Encode images (if vision-based environment), use data augmentation """
             if self.use_encoder:
                 # Stop gradient for subgoal goal and next state
+                if self.use_decoder:
+                    env_state_decoder = state.clone().detach().to(self.device)
                 state = self.encoder(state)
                 with th.no_grad():
                     goal = self.encoder(goal)
@@ -516,12 +528,29 @@ class SafetyRis(SAC):
             debug_info["target_Q"].append(target_Q.mean().item())
 
             # Optimize the critic
+            if self.use_encoder: self.encoder_optimizer.zero_grad()
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
             if not(self.critic_max_grad_norm is None):
                 if self.critic_max_grad_norm > 0:
                     th.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=self.critic_max_grad_norm)
+            if self.use_encoder: self.encoder_optimizer.step()
             self.critic_optimizer.step()
+
+            # Optimize autoencoder
+            if self.use_decoder:
+                y = self.encoder.autoencoder_forward(env_state_decoder)
+                autoencoder_loss = self.autoencoder_criterion(env_state_decoder, y)
+                autoencoder_losses.append(autoencoder_loss.item())
+                self.autoencoder_optimizer.zero_grad()
+                autoencoder_loss.backward()
+                self.autoencoder_optimizer.step()
+
+            # Stop backpropagation to encoder
+            if self.use_encoder:
+                state = state.detach()
+                goal = goal.detach()
+                subgoal = subgoal.detach()
                 
             # Optimize the subgoal policy
             if not self.sac:
@@ -576,6 +605,8 @@ class SafetyRis(SAC):
             self.logger.record("train/subgoal_V", np.mean(debug_info["subgoal_V"]))
             self.logger.record("train/v(s, s_g)", np.mean(debug_info["v(s, s_g)"]))
             self.logger.record("train/v(s_g, g)", np.mean(debug_info["v(s_g, g)"]))
+        if self.use_decoder:
+            self.logger.record("train/autoencoder_loss", np.mean(autoencoder_losses))        
 
     def save(self, folder, save_optims=False):
         th.save(self.actor.state_dict(),		 folder + "actor.pth")
@@ -583,10 +614,14 @@ class SafetyRis(SAC):
         if self.safety:
             th.save(self.critic_cost.state_dict(),		folder + "critic_cost.pth")
         th.save(self.subgoal_net.state_dict(),   folder + "subgoal_net.pth")
+        if self.use_encoder:
+            th.save(self.encoder.state_dict(), folder + "encoder.pth")
         if save_optims:
             th.save(self.actor_optimizer.state_dict(), 	folder + "actor_opti.pth")
             th.save(self.critic_optimizer.state_dict(), 	folder + "critic_opti.pth")
             th.save(self.subgoal_optimizer.state_dict(), folder + "subgoal_opti.pth")
+            if self.use_encoder:
+                th.save(self.encoder_optimizer.state_dict(), folder + "encoder_opti")
     
     def load(self, folder, old_version=False, best=True):
         if old_version:
@@ -599,6 +634,8 @@ class SafetyRis(SAC):
         if self.safety:
             self.critic_cost.load_state_dict(th.load(folder+run_name+"critic_cost.pth", map_location=self.device))
         self.subgoal_net.load_state_dict(th.load(folder+run_name+"subgoal_net.pth", map_location=self.device))
+        if self.use_encoder:
+            self.encoder.load_state_dict(th.load(folder+run_name+"encoder.pth", map_location=self.device))
 
     def _excluded_save_params(self) -> List[str]:
         return super(SafetyRis, self)._excluded_save_params() + ["actor", "critic", "critic_target"]
