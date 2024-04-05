@@ -47,17 +47,38 @@ def get_env(env_name: str):
         env = NavCustomTimeLimit(end_on_collision=True, # True
                                  no_obstacle=False, # False
                                  max_episode_steps=env_config[robot_name]["max_step"])
-    elif env_name == "GCPoint":
-        env = GCPointNav(end_on_collision=True, # True
-                         no_obstacle=False, # False
+    elif "GCPoint" in env_name:
+        end_on_collision = True
+        no_obstacle = False
+        if "empty" in env_name:
+            end_on_collision = False
+            no_obstacle = True
+            assert "_" in robot_name
+            robot_name = robot_name.split("_")[0]
+        env = GCPointNav(end_on_collision=end_on_collision, # True
+                         no_obstacle=no_obstacle, # False
                          max_episode_steps=env_config[robot_name]["max_step"])
-    elif env_name == "GCCar":
-        env = GCCarNav(end_on_collision=True, # True
-                         no_obstacle=False, # False
-                         max_episode_steps=env_config[robot_name]["max_step"])
-    elif env_name == "GCDoggo":
-        env = GCDoggoNav(end_on_collision=True, # True
-                         no_obstacle=False, # False
+    elif "GCCar" in env_name:
+        end_on_collision = True
+        no_obstacle = False
+        if "empty" in env_name:
+            end_on_collision = False
+            no_obstacle = True
+            assert "_" in robot_name
+            robot_name = robot_name.split("_")[0]
+        env = GCCarNav(end_on_collision=end_on_collision, # True
+                       no_obstacle=no_obstacle, # False
+                       max_episode_steps=env_config[robot_name]["max_step"])
+    elif "GCDoggo" in env_name:
+        end_on_collision = True
+        no_obstacle = False
+        if "empty" in env_name:
+            end_on_collision = False
+            no_obstacle = True
+            assert "_" in robot_name
+            robot_name = robot_name.split("_")[0]
+        env = GCDoggoNav(end_on_collision=end_on_collision, # True
+                         no_obstacle=no_obstacle, # False
                          max_episode_steps=env_config[robot_name]["max_step"])
     else:
         raise NotImplementedError(f"Unsupported environment - {env_name}")

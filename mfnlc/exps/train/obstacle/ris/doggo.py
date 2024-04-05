@@ -6,7 +6,7 @@ from mfnlc.exps.train.obstacle.ris.base import train
 
 
 def learn():
-    train(env_name="GCDoggo",
+    train(env_name="GCDoggo", # GCDoggo_empty
           total_timesteps=40_000_000,
           learning_starts=10_000,
           action_noise=None,

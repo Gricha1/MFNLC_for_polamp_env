@@ -306,6 +306,7 @@ class GCSafetyGymBase(SafetyGymBase):
                  end_on_collision=False,
                  fixed_init_and_goal=False,
                  max_episode_steps=100) -> None:
+        assert (not no_obstacle and DIFFICULTY_LEVEL > 0) or (DIFFICULTY_LEVEL == 0 and no_obstacle)
         super().__init__(env_name=env_name,
                          no_obstacle=no_obstacle,
                          end_on_collision=end_on_collision,

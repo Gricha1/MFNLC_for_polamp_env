@@ -66,35 +66,31 @@ One can start tracing code from `exps` folder.
   year={2022},
 }
 ```
+# Docker
+
+## run via image safety_ris_safety_gym
+```commandline
+cd MFNLC_for_polamp_env
+docker run -it --gpus "device=0" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace ris_safety_gym_img
+```
+
+## run docker & exec
+```commandline
+docker start gregory_SafetyRIS bash
+docker exec -it gregory_SafetyRIS bash
+cd /usr/home/workspace
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bin
+```
 
 
-# docker
+## create new docker container
 ```commandline
 cd MFNLC_for_polamp_env
 docker run -it --gpus "device=0" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace continuumio/miniconda3 /bin/bash -c "conda install python=3.8.5 -y && bash" 
 cd /usr/home/workspace
 ```
 
-# run via Dockerfile
-```commandline
-cd MFNLC_for_polamp_env
-docker run -it --gpus "device=0" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace ris_safety_gym_img
-cd /usr/home/workspace 
-cd safety-gym
-pip install -e .
-cd ..
-pip install -e .
-install mujoco (it wasnt installed in docker file dont know why)
-```
-
-# run docker
-```commandline
-docker exec -it gregory_SafetyRIS bash
-cd /usr/home/workspace
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bin
-```
-
-# changed to deps
+## changed to deps
 you need Python 3.8.5
 
 2. safetygym 

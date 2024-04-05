@@ -76,13 +76,17 @@ def train(env_name,
           validate_freq: int = 5000,
           use_wandb = True,
           validate_robot_video=False,
-          validate_subgoal_video=True
+          validate_subgoal_video=True,
+          validate_video_freq_multiplier=3, # valudate_freq * validate_video_freq_multiplier = step
+          test_freq_multipier = 4, # valudate_freq * test_freq_multipier = step
           ):
     algo = "ris"
     if use_wandb:
+        env_type = "empty" if "empty" in env_name else "static"
         run = wandb.init(
             project="train_safety_ris_safety_gym",
             sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+            name=f"{env_type}_{env_name[2:]}"
         )
 
     if n_envs == 1:
@@ -118,14 +122,15 @@ def train(env_name,
             self.old_success_rate = None
 
         def _on_step(self) -> bool:
+            validate_video_delay_step = self.n_calls % (validate_video_freq_multiplier * self._render_freq + 1) == 0
             def run_episodes_and_log_wandb(validation=True, num_episodes=self._n_eval_episodes):
                 if validation:
                     wandb_folder_name = "eval"
                 else:
                     wandb_folder_name = "test"
-                if validate_robot_video:
+                if validate_robot_video and validate_video_delay_step:
                     robot_screens = []
-                if validate_subgoal_video:
+                if validate_subgoal_video and validate_video_delay_step:
                     positions_screens = []
                 self._is_success_buffer = []
                 self.collisions = []
@@ -192,7 +197,7 @@ def train(env_name,
                             print("goal:", goal)
                     # get video
                     if _locals["episode_counts"][_locals["i"]] == 0:
-                        if validate_robot_video:
+                        if validate_robot_video and validate_video_delay_step:
                             if self._eval_env.plot_only_start_goal_pose:
                                 if dubug_info["t"] == 1:
                                     screen = self._eval_env.custom_render(positions_render=False)
@@ -200,7 +205,7 @@ def train(env_name,
                             else:
                                 screen = self._eval_env.custom_render(positions_render=False)
                                 robot_screens.append(screen.transpose(2, 0, 1))
-                        if validate_subgoal_video:
+                        if validate_subgoal_video and validate_video_delay_step:
                             if self._eval_env.plot_only_start_goal_pose:
                                 if dubug_info["t"] == 1:
                                     screen = self._eval_env.custom_render(positions_render=True, dubug_info=dubug_info)
@@ -222,21 +227,21 @@ def train(env_name,
                     n_eval_episodes=num_episodes,
                     deterministic=self._deterministic,
                 )
-                if validate_robot_video:
+                if validate_robot_video and validate_video_delay_step:
                     self.logger.record(
                         f"{wandb_folder_name}/{wandb_folder_name}_video",
                         Video(th.ByteTensor([robot_screens]), fps=40),
                         exclude=("stdout", "log", "json", "csv"),
                     )
-                if validate_subgoal_video:
+                if validate_subgoal_video and validate_video_delay_step:
                     self.logger.record(
                         f"{wandb_folder_name}/{wandb_folder_name}_pos_video",
                         Video(th.ByteTensor([positions_screens]), fps=40),
                         exclude=("stdout", "log", "json", "csv"),
                     )
-                if validate_robot_video:
+                if validate_robot_video and validate_video_delay_step:
                     del robot_screens
-                if validate_subgoal_video:
+                if validate_subgoal_video and validate_video_delay_step:
                     del positions_screens
                 del debug_v_s_sg
                 del debug_v_sg_g
@@ -261,7 +266,6 @@ def train(env_name,
                 
                 return success_rate
             
-            test_freq_multipier = 4
             if (self.n_calls % self._render_freq == 0):
                 val_success_rate = run_episodes_and_log_wandb(validation=True)
 
