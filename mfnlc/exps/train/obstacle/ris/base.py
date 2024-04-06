@@ -122,7 +122,7 @@ def train(env_name,
             self.old_success_rate = None
 
         def _on_step(self) -> bool:
-            validate_video_delay_step = self.n_calls % (validate_video_freq_multiplier * self._render_freq + 1) == 0
+            validate_video_delay_step = True
             def run_episodes_and_log_wandb(validation=True, num_episodes=self._n_eval_episodes):
                 if validation:
                     wandb_folder_name = "eval"
