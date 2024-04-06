@@ -185,7 +185,8 @@ class Encoder(nn.Module):
 	
 	def autoencoder_forward(self, x):
 		if self.use_decoder:
-			state = self.encoder(x)
+			with torch.no_grad():
+				state = self.encoder(x)
 			y = self.decoder(state)
 			return y
 		else:
