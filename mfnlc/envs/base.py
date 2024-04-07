@@ -17,9 +17,9 @@ from collections import deque
 CUSTOM_DATASET = False
 FIXED_HAZARDS = False
 DIFFICULTY_LEVEL = 1
-OBSTACLES_IN_OBSERVATION = 8
+OBSTACLES_IN_OBSERVATION = 4
 FRAME_STACK = 1
-COLLISION_PENALTY = -60
+COLLISION_PENALTY = -100
 ENV_BOUNDS = False
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
@@ -566,7 +566,7 @@ class GCSafetyGymBase(SafetyGymBase):
                                ])
         goal = np.concatenate([
                                self.env.goal_pos[:self.num_relevant_dim],
-                               self.robot_goal_obs(), # absolute goal acc, velocities
+                               self.robot_obs(), # absolute goal acc, velocities
                                self.obstacle_goal_obs() # obsts with respect to goal
                                ])
         
