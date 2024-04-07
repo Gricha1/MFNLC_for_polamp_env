@@ -213,7 +213,7 @@ class SafetyRis(SAC):
         shift_v = int(next_state_batch.shape[1] / env.envs[0].frame_stack * (env.envs[0].frame_stack - 1))
         # Compute sparse rewards: -1 for all actions until the goal is reached
         reward_batch = np.sqrt(np.power(np.array(next_state_batch - goal_batch)[:, shift_v:shift_v+2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
-        done_batch   = 1.0 * (reward_batch <= env.envs[0].env.env.goal_size)# terminal condition
+        done_batch   = 1.0 * (reward_batch <= env.envs[0].env.arrive_radius)# terminal condition
         # done_batch   = 1.0 * (reward_batch <= env.envs[0].env.env.goal_size) + \
         #     1.0 * (np.sqrt(np.power(np.array(next_state_batch)[:, -e_v:-i_v], 2).sum(-1, keepdims=True)) > 0.1)
         done_batch = 1.0 * collision_batch + (1.0 - 1.0 * collision_batch) * (done_batch)

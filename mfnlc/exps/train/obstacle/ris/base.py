@@ -261,7 +261,7 @@ def train(env_name,
                 
                 return success_rate
             
-            test_freq_multipier = 4
+            test_freq_multipier = 1
             if (self.n_calls % self._render_freq == 0):
                 val_success_rate = run_episodes_and_log_wandb(validation=True)
 
@@ -284,10 +284,10 @@ def train(env_name,
                 return True
             
             elif self.n_calls % (test_freq_multipier * self._render_freq + 1) == 0:
-                self._eval_env.set_test_env()
-                test_success_rate = run_episodes_and_log_wandb(validation=False, num_episodes=100)
-                self._eval_env.set_eval_env()
-
+                if not (robot_name == "GCNav"):
+                    self._eval_env.set_test_env()
+                    test_success_rate = run_episodes_and_log_wandb(validation=False, num_episodes=100)
+                    self._eval_env.set_eval_env()
             else:
                 return super()._on_step()
         

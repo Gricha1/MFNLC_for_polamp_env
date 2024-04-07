@@ -197,7 +197,7 @@ class SafetyGymBase(EnvBase):
 
         self.previous_goal_dist = None
 
-        return self.get_obs(False)
+        return self.get_obs()
 
     def goal_obs(self) -> np.ndarray:
         goal_obs = (self.env.goal_pos - self.env.robot_pos)[:self.num_relevant_dim]
@@ -543,7 +543,7 @@ class GCSafetyGymBase(SafetyGymBase):
             offset += k_size
         return flat_obs
     
-    def get_obs(self, arrive):
+    def get_obs(self, arrive=False):
         if len(self.state_history) >= self.history_len:
             self.state_history.popleft()
         if len(self.goal_history) >= self.history_len:
