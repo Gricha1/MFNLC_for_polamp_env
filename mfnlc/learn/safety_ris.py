@@ -44,6 +44,7 @@ class SafetyRis(SAC):
         epsilon: float = 1e-16,
         critic_max_grad_norm: float = None,
         actor_max_grad_norm: float = None,
+        subgoal_max_grad_norm: float = None,
         learning_rate: Union[float, Schedule] = 3e-4,
         buffer_size: int = 1_000_000,  # 1e6
         learning_starts: int = 100,
@@ -142,6 +143,7 @@ class SafetyRis(SAC):
         self.n_ensemble = n_ensemble
         self.clip_v_function = clip_v_function
         self.epsilon = epsilon
+        self.subgoal_max_grad_norm = subgoal_max_grad_norm
 
         # additional buffer
         self.ep_collision_buffer = deque(maxlen=100)
@@ -441,6 +443,9 @@ class SafetyRis(SAC):
         # Update network
         self.subgoal_optimizer.zero_grad()
         subgoal_loss.backward()
+        if not(self.subgoal_max_grad_norm is None):
+            if self.subgoal_max_grad_norm > 0:
+                th.nn.utils.clip_grad_norm_(self.subgoal_net.parameters(), max_norm=self.subgoal_max_grad_norm)
         self.subgoal_optimizer.step()
 
     def sample_action_and_KL(self, state, goal):

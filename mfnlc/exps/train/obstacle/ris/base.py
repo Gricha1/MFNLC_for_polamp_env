@@ -60,6 +60,7 @@ def train(env_name,
           fraction_resampled_goals_are_replay_buffer_goals: float = 0.5,
           critic_max_grad_norm: float = None, # RIS
           actor_max_grad_norm: float = None, # RIS
+          subgoal_max_grad_norm: float = None, # RIS
           create_eval_env: bool = False,
           policy_to_delete_kwargs: Optional[Dict[str, Any]] = None,
           verbose: int = 1,
@@ -352,6 +353,7 @@ def train(env_name,
         epsilon,
         critic_max_grad_norm,
         actor_max_grad_norm,
+        subgoal_max_grad_norm,
         learning_rate, buffer_size, learning_starts, batch_size, tau, gamma,
         train_freq, gradient_steps, action_noise, 
         HerReplayBuffer, #replay_buffer_class
