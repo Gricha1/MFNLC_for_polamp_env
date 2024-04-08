@@ -262,7 +262,7 @@ def train(env_name,
                 
                 return success_rate
             
-            test_freq_multipier = 1
+            test_freq_multipier = 4
             if (self.n_calls % self._render_freq == 0):
                 val_success_rate = run_episodes_and_log_wandb(validation=True)
 
