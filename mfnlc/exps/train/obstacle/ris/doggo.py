@@ -27,8 +27,9 @@ def learn():
           fraction_goals_are_rollout_goals=0.2, # HER
           fraction_resampled_goals_are_env_goals=0.0, # HER
           fraction_resampled_goals_are_replay_buffer_goals=0.5, # HER
-          critic_max_grad_norm=5.0, # RIS
-          actor_max_grad_norm=5.0, # RIS
+          critic_max_grad_norm=2.0, # RIS
+          actor_max_grad_norm=2.0, # RIS
+          subgoal_max_grad_norm=2.0, # RIS
           n_envs=1,
           batch_size=2048,
           log_interval=4,          
