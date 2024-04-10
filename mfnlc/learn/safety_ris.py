@@ -178,8 +178,8 @@ class SafetyRis(SAC):
         self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=self.q_lr)
 
         if self.safety:
-            cost_limit = 0.5
-            max_episode_steps = 600
+            cost_limit = 3.0
+            max_episode_steps = 300
             self.cost_limit = cost_limit
 			# we should use the timestep_cost_limit
             self.timestep_cost_limit = cost_limit * (1 - self.gamma ** max_episode_steps) / (1 - self.gamma) / max_episode_steps
@@ -188,7 +188,7 @@ class SafetyRis(SAC):
             self.critic_cost_target = deepcopy(self.critic_cost)
             self.critic_cost_optimizer = th.optim.Adam(self.critic_cost.parameters(), lr=self.q_lr)
             self.update_lambda = 1000
-            lambda_initialization = 0.1
+            lambda_initialization = 0.5
             self.lambda_coefficient = th.tensor(lambda_initialization, requires_grad=True)
             self.lambda_optimizer = th.optim.Adam([self.lambda_coefficient], lr=5e-4)
 
@@ -488,6 +488,7 @@ class SafetyRis(SAC):
         self.policy.set_training_mode(True)
 
         actor_losses, critic_losses = [], []
+        critic_cost_losses = []
         debug_info = {}
         debug_info["subgoal_net_losses"] = []
         debug_info["advs"] = []
@@ -548,6 +549,7 @@ class SafetyRis(SAC):
                 # Compute safety critic loss
                 Q_cost = self.critic_cost(state, action, goal)
                 critic_cost_loss = 0.5 * (Q_cost - target_Q_cost).pow(2).sum(-1).mean()
+                critic_cost_losses.append(critic_cost_loss.item())
                 debug_info["Q_cost"].append(Q_cost.mean().item())
                 debug_info["target_Q_cost"].append(target_Q_cost.mean().item())
 
@@ -627,6 +629,7 @@ class SafetyRis(SAC):
             self.logger.record("train/v(s, s_g)", np.mean(debug_info["v(s, s_g)"]))
             self.logger.record("train/v(s_g, g)", np.mean(debug_info["v(s_g, g)"]))
         if self.safety:
+            self.logger.record("train/critic_cost_loss", np.mean(critic_cost_losses))    
             self.logger.record("train/Q_cost", np.mean(debug_info["Q_cost"])) 
             self.logger.record("train/target_Q_cost", np.mean(debug_info["target_Q_cost"]))
             self.logger.record("train/lambda_loss", np.mean(debug_info["lambda_loss"]) if len(debug_info["lambda_loss"]) > 0 else 0)

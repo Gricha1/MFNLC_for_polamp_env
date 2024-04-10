@@ -19,7 +19,7 @@ FIXED_HAZARDS = False
 DIFFICULTY_LEVEL = 1
 OBSTACLES_IN_OBSERVATION = 4
 FRAME_STACK = 1
-COLLISION_PENALTY = -60
+COLLISION_PENALTY = -100
 ENV_BOUNDS = False
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
@@ -501,7 +501,10 @@ class GCSafetyGymBase(SafetyGymBase):
         info["min_goal_distance"] = min(goal_dist, self.previous_min_goal_dist)
         self.previous_min_goal_dist = info["min_goal_distance"]
         obs["clearance_is_enough"] = info["clearance_is_enough"]
-        self.episode_cost += info["clearance_is_enough"]
+        if not collision:
+            self.episode_cost += info["clearance_is_enough"]
+        else:
+            self.episode_cost += math.fabs(self.collision_penalty)
         info["episode_cost"] = self.episode_cost
         
         return obs, reward, done, info
