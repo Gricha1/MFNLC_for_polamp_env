@@ -602,14 +602,10 @@ class SafetyRis(SAC):
                 # Optimize the safety critic
                 self.critic_cost_optimizer.zero_grad()
                 critic_cost_loss.backward()
-                # if self.max_grad_norm > 0:
-                #     th.nn.utils.clip_grad_norm_(self.critic_cost.parameters(), max_norm=self.max_grad_norm)
+                if not(self.critic_max_grad_norm is None):
+                    if self.critic_max_grad_norm > 0:
+                        th.nn.utils.clip_grad_norm_(self.critic_cost.parameters(), max_norm=self.critic_max_grad_norm)
                 self.critic_cost_optimizer.step()
-
-                # with th.no_grad():
-                #     critic_cost_grad_norm = (
-                #     sum(p.grad.data.norm(2).item() ** 2 for p in self.critic_cost.parameters() if p.grad is not None) ** 0.5
-                #     )
 
             # Optimize autoencoder
             if self.use_decoder:
