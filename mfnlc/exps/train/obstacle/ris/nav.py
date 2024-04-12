@@ -10,7 +10,7 @@ def learn():
           total_timesteps=5_000_000,
           learning_starts=10_000,
           action_noise=None,
-          new_policy_kwargs={"net_arch": [256, 256]},
+          new_policy_kwargs={"net_arch": [64, 64]},
           policy_to_delete_kwargs={"net_arch": [100, 100]},
           train_freq=(1, "episode"), #train_freq=(200, "step"),
           gradient_steps=1, #gradient_steps=100,
@@ -28,7 +28,7 @@ def learn():
           critic_max_grad_norm=None, # RIS
           actor_max_grad_norm=None, # RIS
           n_envs=1,
-          batch_size=2048,
+          batch_size=400,
           log_interval=4,
           validate_freq=10_000,
           use_wandb=True,

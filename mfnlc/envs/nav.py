@@ -14,7 +14,7 @@ FIXED_HAZARDS = False
 DIFFICULTY_LEVEL = 1 # default
 OBSTACLES_IN_OBSERVATION = 8 # default
 FRAME_STACK = 1
-COLLISION_PENALTY = -60
+COLLISION_PENALTY = -120
 ENV_BOUNDS = False
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
@@ -50,8 +50,10 @@ class Continuous2DNav(EnvBase):
             self.floor_ub = np.array([1., 1.], dtype=np.float32)
         elif DIFFICULTY_LEVEL == 1:
             self.obstacle_num = 8
-            self.floor_lb = np.array([-2., -2.], dtype=np.float32)
-            self.floor_ub = np.array([2., 2.], dtype=np.float32)
+            #self.floor_lb = np.array([-2., -2.], dtype=np.float32)
+            #self.floor_ub = np.array([2., 2.], dtype=np.float32)
+            self.floor_lb = np.array([-1., -1.], dtype=np.float32)
+            self.floor_ub = np.array([1., 1.], dtype=np.float32)
         else:
             assert 1 == 0, "didnt implemented"
 
