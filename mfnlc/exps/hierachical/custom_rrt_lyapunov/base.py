@@ -67,11 +67,13 @@ def evaluate(env_name,
     monitor = None
 
     i = 0
+    visual_episodes = [0, 20, 40]
     running_data = {
         "total_step": [],
         "goal_met": [],
         "collision": [],
-        "reward_sum": []
+        "reward_sum": [],
+        "cost_sum": []
     }
 
     re_plan = False
@@ -84,16 +86,11 @@ def evaluate(env_name,
         path = planner.plan(planner_max_iter, **planning_algo_kwargs)
         if check_plan:
             image_plan = plot_path_2d(planner.algo.search_space, path, planner.algo.tree)
-            if render:
+            if render and (i in visual_episodes):
                 print("add image plan to tensorboard")
-                #writer.add_image("image", image_plan, dataformats="HWC")
-                #image_plan = np.transpose(np.array([image_plan]), axes=[0, 3, 1, 2]).squeeze()
                 image_plan = np.transpose(np.array([image_plan]), axes=[0, 3, 1, 2])
                 image_plan = th.ByteTensor([image_plan])
-                #image_plan = Image(image_plan, "HWC")
-                #image_plan = Image.fromarray((image_plan * 255).astype(np.uint8))
-                #writer.add_image("image", image_plan, "CHW")
-                writer.add_video('eval_plan', image_plan, global_step=0, fps=30)
+                writer.add_video('eval_plan', image_plan, global_step=i, fps=30)
         if len(path) == 0:
             re_plan = True
             continue
@@ -105,12 +102,12 @@ def evaluate(env_name,
                    path=path,
                    arrive_radius=arrive_radius,
                    monitor=monitor,
-                   render=render,
+                   render=(render and (i in visual_episodes)),
                    render_config=render_config)
         for k in res:
-            if render and k == "screens":
+            if render and k == "screens" and (i in visual_episodes):
                 print("add video to tensorboard")
-                writer.add_video('eval_trajectory', res[k], global_step=0, fps=30)
+                writer.add_video('eval_trajectory', res[k], global_step=i, fps=30)
                 continue
             running_data[k].append(res[k])
         i += 1
@@ -121,6 +118,9 @@ def evaluate(env_name,
     os.makedirs(res_dir, exist_ok=True)
     stat.to_csv(res_dir + f"/{level}.csv")
     print("results are saved to:", res_dir + f"/{level}.csv")
+
+    for key_ in running_data:
+        writer.add_scalar(f'testing/mean_{key_}', np.mean(running_data[key_]), 0)
 
     writer.close()
     env.close()

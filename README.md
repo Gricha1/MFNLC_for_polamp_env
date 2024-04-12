@@ -137,3 +137,14 @@ for i in range(5):
     # evaluate_controller()
 evaluate_lyapunov()
 ```
+
+# docker via img
+docker run -it --gpus "device=0" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace safety_ris_safety_gym
+cd /usr/home/workspace
+
+# deps
+pip install cloudpickle==2.1.0
+
+# train&validate lyapunov RRT
+python exps/train/no_obstacle/custom_lyapunov_td3/point.py
+python exps/hierachical/custom_rrt_lyapunov/point.py

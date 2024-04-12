@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 #import safety_gym  # noqa
 from gym import Env
+import math
 
 from mfnlc.config import env_config
 
@@ -101,7 +102,8 @@ class SafetyGymBase(EnvBase):
         self.num_relevant_dim = 2  # For x-y relevant observations ignoring z-axis
 
         # Reward config
-        self.collision_penalty = -0.01
+        #self.collision_penalty = -0.01
+        self.collision_penalty = -100
         self.arrive_reward = 20
 
         customized_config = env_config[self.robot_name].get("env_prop", None)
@@ -175,6 +177,7 @@ class SafetyGymBase(EnvBase):
             self.env.robot_locations = self.robot_pos[:2].tolist()
 
         self.previous_goal_dist = None
+        self.episode_cost = 0
 
         return self.get_obs()
 
@@ -246,6 +249,13 @@ class SafetyGymBase(EnvBase):
             obs[:self.num_relevant_dim] = np.zeros(self.num_relevant_dim)
 
         self.traj.append(self.robot_pos)
+
+        # add cost
+        if not collision:
+            self.episode_cost += info["clearance_is_enough"]
+        else:
+            self.episode_cost += math.fabs(self.collision_penalty)
+        info["episode_cost"] = self.episode_cost
 
         return obs, reward, done, info
 

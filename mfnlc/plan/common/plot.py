@@ -35,14 +35,16 @@ def plot_path_2d(space: SearchSpace,
         ax.add_patch(obs)
 
     # tree
-    if tree is not None:
-        queue = [tree.root]
-        while queue:
-            parent = queue.pop(0)
-            for child in parent.children:
-                line = np.array([parent.state, child.state])
-                ax.plot(line[:, 0], line[:, 1], marker="x", color="k")
-                queue.append(child)
+    print_tree = False
+    if print_tree:
+        if tree is not None:
+            queue = [tree.root]
+            while queue:
+                parent = queue.pop(0)
+                for child in parent.children:
+                    line = np.array([parent.state, child.state])
+                    ax.plot(line[:, 0], line[:, 1], marker="x", color="k")
+                    queue.append(child)
 
     # path
     if len(path) > 0:

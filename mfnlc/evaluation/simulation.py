@@ -78,21 +78,21 @@ def simu(env,
     env.set_render_config(render_config)
     if render:
         screens = []
-        #env.render()
         screen = env.custom_render()
-        # PyTorch uses CxHxW vs HxWxC gym (and tensorflow) image convention
         screens.append(screen.transpose(2, 0, 1))
 
     total_step = 0
     goal_met = False
     collision = False
     reward_sum = 0.0
+    cost_sum = 0.0
 
     for i in range(n_steps):
         action = model.predict(obs)[0]
         obs, reward, done, info = env.step(action)
         total_step += 1
         reward_sum += reward
+        cost_sum += info["episode_cost"]
 
         if path is not None:
             if np.linalg.norm(env.robot_pos - path[subgoal_index]) < arrive_radius:
@@ -109,12 +109,7 @@ def simu(env,
             #env.set_roa(subgoal, lyapunov_r)  # noqa
 
         if render:
-            #if path is not None and monitor is not None:
-            #    env.render()
-            #else:
-            #    env.render()
             screen = env.custom_render()
-            # PyTorch uses CxHxW vs HxWxC gym (and tensorflow) image convention
             screens.append(screen.transpose(2, 0, 1))
 
         if done:
@@ -126,10 +121,12 @@ def simu(env,
         return {"total_step": total_step,
                 "collision": collision,
                 "goal_met": goal_met,
-                "reward_sum": reward_sum}
+                "reward_sum": reward_sum,
+                "cost_sum": cost_sum}
     else:
         return {"total_step": total_step,
                 "collision": collision,
                 "goal_met": goal_met,
                 "reward_sum": reward_sum,
+                "cost_sum": cost_sum,
                 "screens" : th.ByteTensor([screens])}

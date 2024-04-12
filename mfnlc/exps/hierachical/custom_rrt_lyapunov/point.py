@@ -9,17 +9,17 @@ ENV_NAME = "Point-eval"
 def rrt_lyapunov(planning_algo):
     level = 1
     i = level
+    n_tasks = 50
     #for i in range(1, 4):
     print(f"{ENV_NAME} - RRT + Lyapunov-TD3 - level {i}")
     evaluate(ENV_NAME,
-            n_rollout=1,
+            n_rollout=n_tasks,
             level=i,
             planning_algo=planning_algo,
             planner_max_iter=i * i * 1000,
             n_steps=1000 * i * i,
             arrive_radius=0.3,
             monitor_max_step_size=0.5,
-            #render=False,
             render=True,
             check_plan=True,
             render_config={
