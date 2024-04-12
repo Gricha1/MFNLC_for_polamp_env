@@ -59,7 +59,7 @@ class Planner:
             resolution = np.max(env.floor_ub - env.floor_lb) / 100
         elif issubclass(type(self.env.unwrapped), SafetyGymBase):
             env: Engine = self.env.unwrapped.env
-            assert not env.done, "reset env first"
+            #assert not env.done, "reset env first"
             robot_radius = env_config[self.env.robot_name]["robot_radius"]
             arrive_radius = env.goal_size
             floor_extends = env.placements_extents

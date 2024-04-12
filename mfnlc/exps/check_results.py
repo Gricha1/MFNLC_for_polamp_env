@@ -21,6 +21,11 @@ def results_stat(env_name: str,
     return pd.DataFrame(stat)
 
 
+def print_level_results(env_name, algo, level, planning_algo=None):
+    level_res = [results_stat(env_name, algo, level, planning_algo)]
+    res_df = pd.concat(level_res, ignore_index=True).set_index("Level")
+    print(res_df)
+
 def print_all_results(env_name, algo, planning_algo=None):
     level_res = [results_stat(env_name, algo, i, planning_algo) for i in range(1, 4)]
     res_df = pd.concat(level_res, ignore_index=True).set_index("Level")
