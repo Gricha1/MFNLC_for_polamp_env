@@ -81,6 +81,12 @@ def train(env_name,
 
     tensorboard_log = get_path(robot_name, algo, "log")
 
+    model_path = get_path(robot_name, algo, "model")
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    print("****************")
+    print("model save path:", model_path)
+    print("****************")
+
     # add custom video callback
     class VideoRecorderCallback(BaseCallback):
         def __init__(self, eval_env: gym.Env, render_freq: int, n_eval_episodes: int = 1, deterministic: bool = True):
@@ -128,6 +134,9 @@ def train(env_name,
                     exclude=("stdout", "log", "json", "csv"),
                 )
                 del screens
+
+                model.save(model_path)
+
             return True
         
     if n_envs == 1:
@@ -138,7 +147,7 @@ def train(env_name,
     # test
     callback_eval_env.reset()
     print(callback_eval_env.custom_render().shape)
-    video_recorder = VideoRecorderCallback(callback_eval_env, render_freq=50_000)
+    video_recorder = VideoRecorderCallback(callback_eval_env, render_freq=5_000)
     
     model = LyapunovTD3(
         tclf, policy, env, lqf_loss_cnst, tclf_q_sigma, learning_rate, buffer_size, learning_starts, batch_size, tau,
