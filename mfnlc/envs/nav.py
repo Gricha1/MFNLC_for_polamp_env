@@ -1,6 +1,7 @@
 import random
 from typing import Dict
 import copy
+from collections import deque
 
 import gym
 import matplotlib.pyplot as plt
@@ -10,14 +11,15 @@ from mfnlc.envs.base import EnvBase
 
 CUSTOM_DATASET = False
 FIXED_HAZARDS = False
-DIFFICULTY_LEVEL = 1
-OBSTACLES_IN_OBSERVATION = 8
+DIFFICULTY_LEVEL = 1 # default
+OBSTACLES_IN_OBSERVATION = 8 # default
 FRAME_STACK = 1
 COLLISION_PENALTY = -60
 ENV_BOUNDS = False
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
 PLOT_SUBGOAL_s_to_sg = True
+PLOT_SUBGOAL = True
 
 class Continuous2DNav(EnvBase):
 
@@ -31,19 +33,27 @@ class Continuous2DNav(EnvBase):
 
         self.arrive_radius = 0.1
         self.robot_radius = 0.1
-        self.obstacle_num = 20
-        self.obstacle_in_obs = 2
+        self.obstacle_in_obs = OBSTACLES_IN_OBSERVATION
         self.obstacle_radius = 0.15
         self.collision_penalty = -0.01
         self.arrive_reward = 0
         self.step_size = 0.01
         self.robot_name = "Nav"
 
-        self.goal_size = 500
-        self.subgoal_size = 100
+        # using for default env rendering
+        #self.goal_size = 500
+        #self.subgoal_size = 100
 
-        self.floor_lb = np.array([-1., -1.], dtype=np.float32)
-        self.floor_ub = np.array([1., 1.], dtype=np.float32)
+        if DIFFICULTY_LEVEL == -1: # default
+            self.obstacle_num = 20
+            self.floor_lb = np.array([-1., -1.], dtype=np.float32)
+            self.floor_ub = np.array([1., 1.], dtype=np.float32)
+        elif DIFFICULTY_LEVEL == 1:
+            self.obstacle_num = 8
+            self.floor_lb = np.array([-2., -2.], dtype=np.float32)
+            self.floor_ub = np.array([2., 2.], dtype=np.float32)
+        else:
+            assert 1 == 0, "didnt implemented"
 
         self.init = None
         self.goal = None
@@ -145,7 +155,7 @@ class Continuous2DNav(EnvBase):
         #if self.fig is not None:
         #    self.fig, self.ax = None, None
 
-        return self.get_obs()
+        return self.get_obs(False)
 
     def goal_obs(self) -> np.ndarray:
         #if self.subgoal is not None:
@@ -261,6 +271,8 @@ class GCContinuous2DNav(Continuous2DNav):
                  end_on_collision=False,
                  fixed_init_and_goal=False,
                  max_episode_steps=100) -> None:
+        self.num_relevant_dim = 2
+        self.frame_stack = FRAME_STACK
         super().__init__(no_obstacle=no_obstacle,
                         end_on_collision=end_on_collision,
                         fixed_init_and_goal=fixed_init_and_goal)
@@ -270,31 +282,65 @@ class GCContinuous2DNav(Continuous2DNav):
                 self.max_episode_steps = max_episode_steps
         self.spec = EnvSpec()
 
+        # Reward config
+        self.collision_penalty = COLLISION_PENALTY
+        self.arrive_reward = 0
+        self.time_step_reward = -1
+
+        self.subgoal_pos = None
+        self.subgoal_s_to_sg_pos = None
+        self.obstacle_observation = None
+        self.obstacle_goal_observation = None
+        self.render_info = {}
+        self.render_info["fig"] = None
+        self.render_info["ax_states"] = None
+        self.plot_subgoal = PLOT_SUBGOAL
+        self.plot_only_start_goal_pose = PLOT_ONLY_START_GOAL_POSE # use in envs/train/obstacles/ris/base.pys
+
+        self.hazards_num = self.obstacle_num
+        self.state_history = deque([])
+        self.goal_history = deque([])
+        self.history_len = self.frame_stack
+
+    def obstacle_obs(self) -> np.ndarray:
+        if self.no_obstacle:
+            self.obstacle_observation = np.zeros(self.num_relevant_dim * self.obstacle_in_obs)
+            return self.obstacle_observation
+
+        # get distance to each obstacle upto self.obstacle_in_obs nearest obstacles
+        vec_to_obs = (self.hazards_pos - self.robot_pos)[:, :self.num_relevant_dim]
+        dist_to_obs = np.linalg.norm(vec_to_obs, ord=2, axis=-1)
+        order = dist_to_obs.argsort()[:self.obstacle_in_obs]
+        flattened_vec = vec_to_obs[order].flatten()
+        # in case of that the obstacle number in environment is smaller than self.obstacle_in_obs
+        output = np.zeros(self.obstacle_in_obs * self.num_relevant_dim)
+        output[:flattened_vec.shape[0]] = flattened_vec
+        self.obstacle_observation = output
+        return output
+        # obs = self.env.obs()
+        # return obs["hazards_lidar"]
+    
     def robot_goal_obs(self) -> np.ndarray:
+        return np.array([])  # 2d nav does not care about the robot's posture
+    
+    def obstacle_goal_obs(self) -> np.ndarray:
         """
-            'accelerometer', 'velocimeter', 'gyro', 
-            'magnetometer', 'goal_lidar', 'hazards_lidar', 
-            'vases_lidar'
-
-            "accelerometer_z" should be 9.81, everything else is 0
+            get obstacle observation with respect to goal
         """
-        # only gets observation dimensions relevant to robot from safety-gym
-        obs = self.env.obs()
-        flat_obs = np.zeros(self.robot_obs_size)
-        offset = 0
+        if self.no_obstacle:
+            self.obstacle_goal_observation = np.zeros(self.num_relevant_dim * self.obstacle_in_obs)
+            return self.obstacle_goal_observation
 
-        for k in sorted(self.env.obs_space_dict.keys()):
-            if "lidar" in k:
-                continue
-            k_size = np.prod(obs[k].shape)
-            if not "accelerometer" in k:
-                continue
-            if "accelerometer" in k:
-                copy_obs = copy.deepcopy(obs[k])
-                copy_obs[:2] = 0 # acc_x, acc_y, acc_z = 0, 0, 9.81
-                flat_obs[offset:offset + k_size] = copy_obs.flat
-            offset += k_size
-        return flat_obs
+        # get distance to each obstacle upto self.obstacle_in_obs nearest obstacles
+        vec_to_obs = (self.hazards_pos - self.goal)[:, :self.num_relevant_dim]
+        dist_to_obs = np.linalg.norm(vec_to_obs, ord=2, axis=-1)
+        order = dist_to_obs.argsort()[:self.obstacle_in_obs]
+        flattened_vec = vec_to_obs[order].flatten()
+        # in case of that the obstacle number in environment is smaller than self.obstacle_in_obs
+        output = np.zeros(self.obstacle_in_obs * self.num_relevant_dim)
+        output[:flattened_vec.shape[0]] = flattened_vec
+        self.obstacle_goal_observation = output
+        return output        
     
     def get_obs(self, arrive):
         if len(self.state_history) >= self.history_len:
@@ -306,19 +352,19 @@ class GCContinuous2DNav(Continuous2DNav):
                 self.goal_history.popleft()
             else:
                 print("we should not remove anything because the goal was changed")
-                print(f"current goal: {self.env.goal_pos[:self.num_relevant_dim]}")
+                print(f"current goal: {self.goal[:self.num_relevant_dim]}")
                 print(f"old goal: {self.goal_history[0][:self.num_relevant_dim]}")
-                print(f"current pose: {self.env.robot_pos[:self.num_relevant_dim]}")
-                distance = np.sqrt(np.power(np.array(self.env.robot_pos[:self.num_relevant_dim]) - np.array(self.goal_history[0][:self.num_relevant_dim]), 2).sum(-1, keepdims=True))
-                print(f"distance: {distance} and threshold: {self.env.goal_size}")
+                print(f"current pose: {self.robot_pos[:self.num_relevant_dim]}")
+                distance = np.sqrt(np.power(np.array(self.robot_pos[:self.num_relevant_dim]) - np.array(self.goal_history[0][:self.num_relevant_dim]), 2).sum(-1, keepdims=True))
+                print(f"distance: {distance} and threshold: {self.arrive_radius}")
 
         state = np.concatenate([
-                               self.env.robot_pos[:self.num_relevant_dim],
+                               self.robot_pos[:self.num_relevant_dim],
                                self.robot_obs(), # absolute robot acc, velocities
                                self.obstacle_obs(), # obsts with respect to obs
                                ])
         goal = np.concatenate([
-                               self.env.goal_pos[:self.num_relevant_dim],
+                               self.goal[:self.num_relevant_dim],
                                self.robot_goal_obs(), # absolute goal acc, velocities
                                self.obstacle_goal_obs() # obsts with respect to goal
                                ])
@@ -340,15 +386,87 @@ class GCContinuous2DNav(Continuous2DNav):
         }
 
 
-    def reset(self):
-        obs = super().reset()
+    def reset(self, **kwargs):
+        # check env config
+        self.state_history.clear()
+        self.goal_history.clear()
+        if self.no_obstacle:
+            assert self.hazards_num == 0, "empty env has no obstacles"
+        else:
+            assert self.hazards_num > 0, "env with obstacles should have obstacles"
+        
+        self.subgoal_pos = None
+        self.subgoal_s_to_sg_pos = None
+        obs = super().reset(**kwargs)
+        assert not obs["collision"], "initial state in collision!!!"
+        self.previous_min_goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
+        return obs
 
-        #plt.close("all")
-        #if self.fig is not None:
-        #    self.fig, self.ax = None, None
 
-        return self.get_obs()
+    def step(self, action: np.ndarray):
+        # safety gym bug assert
+        assert action.shape == self.action_space.low.shape
+        info = {}
+        
+        # step in nav env
+        self.robot_pos += action.clip(self.action_space.low,
+                                      self.action_space.high) * self.step_size
+        #self.robot_pos = self.robot_pos.clip(self.floor_lb, self.floor_ub)
 
+        vec_to_goal = self.goal - self.robot_pos
+        if self.prev_vec_to_goal is None:
+            goal_reward = 0
+        else:
+            vel_vec = self.prev_vec_to_goal - vec_to_goal
+            vec_cos = np.dot(vel_vec, self.prev_vec_to_goal) \
+                      / np.sqrt(np.linalg.norm(self.prev_vec_to_goal) + np.linalg.norm(vel_vec))
+            goal_reward = vec_cos
+        self.prev_vec_to_goal = vec_to_goal
+        collision = self.collision_detection()
+        arrive = self.arrive()
+        if self.end_on_collision and collision:
+            done = True
+        else:
+            done = arrive
+
+        # As of now use safety gym info['cost'] to detect collisions
+        info["collision"] = collision
+        info["goal_met"] = arrive
+        # check env config
+        if self.no_obstacle:
+            assert collision == False
+
+        if ENV_BOUNDS:
+            if self.robot_pos[0] < -2.0 or self.robot_pos[0] > 2.0 or \
+                self.robot_pos[1] < -2.0 or self.robot_pos[1] > 2.0:
+                collision = True
+
+        reward = self.time_step_reward + self.collision_penalty * collision
+
+        if self.end_on_collision and collision:
+            done = True
+        else:
+            done = arrive or done
+
+        obs = self.get_obs(arrive)
+        obs["collision"] = collision
+        
+        # test
+        shift_v = int(obs["observation"].shape[0] / self.frame_stack * (self.frame_stack - 1))
+        test_reward = np.sqrt(np.power(np.array(obs["observation"] - obs["desired_goal"])[shift_v : shift_v+2], 2).sum(-1, keepdims=True)) # distance: next_state to goal
+        test_arrive = 1.0 * (test_reward <= self.arrive_radius)# terminal condition
+        if not arrive == test_arrive:
+            assert 1 == 0
+
+        self.traj.append(self.robot_pos)
+
+        info["goal_is_arrived"] = arrive
+        info["is_success"] = arrive
+        goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
+        info["min_goal_distance"] = min(goal_dist, self.previous_min_goal_dist)
+        self.previous_min_goal_dist = info["min_goal_distance"]
+
+        return obs, reward, done, info
 
     def _build_space(self):
         action_high = np.ones(2, dtype=np.float32)
@@ -367,6 +485,138 @@ class GCContinuous2DNav(Continuous2DNav):
             "collision": gym.spaces.Box(0.0, 1.0, (1,), np.float32),
             "clearance_is_enough": gym.spaces.Box(0.0, 1.0, (1,), np.float32)
         })
+
+    def compute_rewards(self, new_actions, new_next_obs_dict):
+        return self.time_step_reward * np.ones_like(new_actions[:, 0])
+    
+    def set_test_env(self):
+        init = 0.9 * self.train_dataset["floor_lb"]
+        goal = np.array([0.9, 0.8]) * self.train_dataset["floor_ub"]
+        self.update_env_config({
+            "robot_locations": [init.tolist()],
+            "goal_locations": [goal.tolist()]
+        })
+    
+    def set_eval_env(self):
+        self.update_env_config({
+            "robot_locations": [],
+            "goal_locations": []
+        })
+
+    def set_subgoal_pos(self, subgoal_related_pos, s_to_sg=False):
+        if s_to_sg:
+            if self.subgoal_s_to_sg_pos:
+                del self.subgoal_s_to_sg_pos
+            self.subgoal_s_to_sg_pos = []
+            shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
+            self.subgoal_s_to_sg_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())
+            self.subgoal_s_to_sg_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
+        else:
+            if self.subgoal_pos:
+                del self.subgoal_pos
+            self.subgoal_pos = []
+            shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
+            self.subgoal_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())
+            self.subgoal_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
+
+    def custom_render(self, positions_render=False, dubug_info={}, add_subgoal_values=PLOT_ADD_SUBGOAL_VALUES, shape=(600, 600)):
+        if positions_render:
+            env_min_x, env_max_x = -3, 3
+            env_min_y, env_max_y = -3, 3
+            if self.render_info["fig"] is None:
+                if add_subgoal_values:
+                    self.render_info["fig"] = plt.figure(figsize=[6.4*2, 4.8])
+                    self.render_info["ax_states"] = self.render_info["fig"].add_subplot(121)
+                    self.render_info["ax_subgoal_values"] = self.render_info["fig"].add_subplot(122)
+                else:
+                    self.render_info["fig"] = plt.figure(figsize=[6.4, 4.8])
+                    self.render_info["ax_states"] = self.render_info["fig"].add_subplot(111)
+            self.render_info["ax_states"].set_ylim(bottom=env_min_y, top=env_max_y)
+            self.render_info["ax_states"].set_xlim(left=env_min_x, right=env_max_x)
+            # robot pose
+            x = self.robot_pos[0]
+            y = self.robot_pos[1]
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="g", alpha=0.5)
+            self.render_info["ax_states"].add_patch(circle_robot) 
+            self.render_info["ax_states"].scatter(x, y, color="red")
+            self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s")
+            # env_obs = self.env.obs()
+            # angle_space = np.linspace(0, 360, env_obs["hazards_lidar"].shape[0] + 1)[:-1]
+            # for distance, angle in zip(env_obs["hazards_lidar"], angle_space):
+            #     plt.plot([x, x + distance * math.cos(angle)],\
+            #             [y, y + distance * math.sin(angle)],\
+            #             '-', linewidth = 4, color='red')
+
+            # subgoal
+            if self.subgoal_pos is not None and PLOT_SUBGOAL:
+                x = self.subgoal_pos[0]
+                y = self.subgoal_pos[1]
+                circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="orange", alpha=0.5)
+                self.render_info["ax_states"].add_patch(circle_robot)
+                self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s_g")
+                if add_subgoal_values:
+                    self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_s_sg"])), dubug_info["v_s_sg"])
+                    self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_sg_g"])), dubug_info["v_sg_g"])
+            if PLOT_SUBGOAL_s_to_sg and self.subgoal_s_to_sg_pos is not None:
+                x = self.subgoal_s_to_sg_pos[0]
+                y = self.subgoal_s_to_sg_pos[1]
+                circle_robot = plt.Circle((x, y), radius=self.robot_radius / 3, color="orange", alpha=0.5)
+                self.render_info["ax_states"].add_patch(circle_robot)
+
+            # goal
+            x = self.goal[0]
+            y = self.goal[1]
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="y", alpha=0.5)
+            self.render_info["ax_states"].add_patch(circle_robot) 
+            self.render_info["ax_states"].text(x + 0.05, y + 0.05, "g")
+            # for distance, angle in zip(env_obs["goal_lidar"], angle_space):
+            #     plt.plot([x, x + distance * math.cos(angle)],\
+            #             [y, y + distance * math.sin(angle)],\
+            #             '-', linewidth = 4, color='blue')
+                
+            # add obstacles
+            obstacles = [plt.Circle(obs[:2], radius=self.obstacle_radius,  # noqa
+                        color="b", alpha=0.5) for obs in self.hazards_pos]
+            for obs in obstacles:
+                self.render_info["ax_states"].add_patch(obs)
+            x = self.robot_pos[0]
+            y = self.robot_pos[1]
+            self.obstacle_observation = np.reshape(self.obstacle_observation, (int(self.obstacle_observation.shape[0]/ 2), 2))
+            for obs_coord in self.obstacle_observation:
+                self.render_info["ax_states"].plot([x, x + obs_coord[0]],\
+                        [y, y + obs_coord[1]],\
+                        '-', linewidth = 2, color='red')
+            x = self.goal[0]
+            y = self.goal[1]
+            self.obstacle_goal_observation = np.reshape(self.obstacle_goal_observation, (int(self.obstacle_goal_observation.shape[0]/ 2), 2))
+            for obs_coord in self.obstacle_goal_observation:
+                self.render_info["ax_states"].plot([x, x + obs_coord[0]],\
+                        [y, y + obs_coord[1]],\
+                        '-', linewidth = 2, color='green')
+            # debug info
+            if len(dubug_info) != 0:
+                a0 = dubug_info["a0"]
+                a1 = dubug_info["a1"]
+                acc_reward = dubug_info["acc_reward"]
+                t = dubug_info["t"]
+                acc_cost = dubug_info["acc_cost"]
+                self.render_info["ax_states"].text(env_max_x - 4.5, env_max_y - 0.3, f"a0:{int(a0*100)/100}")
+                self.render_info["ax_states"].text(env_max_x - 3.5, env_max_y - 0.3, f"a1:{int(a1*100)/100}")
+                self.render_info["ax_states"].text(env_max_x - 2.5, env_max_y - 0.3, f"R:{int(acc_reward*10)/10}")
+                self.render_info["ax_states"].text(env_max_x - 1.5, env_max_y - 0.3, f"C:{int(acc_cost*10)/10}")
+                self.render_info["ax_states"].text(env_max_x - 0.5, env_max_y - 0.3, f"t:{t}")
+
+            # render img
+            # self.render_info["fig"].savefig("example.png")
+            self.render_info["fig"].canvas.draw()
+            data = np.frombuffer(self.render_info["fig"].canvas.tostring_rgb(), dtype=np.uint8)
+            data = data.reshape(self.render_info["fig"].canvas.get_width_height()[::-1] + (3,))
+            self.render_info["ax_states"].clear()
+            if add_subgoal_values:
+                self.render_info["ax_subgoal_values"].clear()
+            return data
+        else:
+            assert 1 == 0
 
 
 class NavCustomTimeLimit(GCContinuous2DNav):

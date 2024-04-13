@@ -105,6 +105,7 @@ class CustomActorCriticPolicy:
 		self.device = device
 		self.actor = None
 		self.critic = None
+		self.critic_cost = None
 		
 	def select_action(self, state, goal, deterministic):
 		with torch.no_grad():

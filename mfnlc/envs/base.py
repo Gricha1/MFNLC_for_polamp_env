@@ -197,7 +197,7 @@ class SafetyGymBase(EnvBase):
 
         self.previous_goal_dist = None
 
-        return self.get_obs(False)
+        return self.get_obs()
 
     def goal_obs(self) -> np.ndarray:
         goal_obs = (self.env.goal_pos - self.env.robot_pos)[:self.num_relevant_dim]
@@ -469,6 +469,7 @@ class GCSafetyGymBase(SafetyGymBase):
         obs = super().reset(**kwargs)
         assert not obs["collision"], "initial state in collision!!!"
         self.previous_min_goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
+        self.episode_cost = 0
         return obs
     
     def step(self, action: np.ndarray):
@@ -514,7 +515,13 @@ class GCSafetyGymBase(SafetyGymBase):
         goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
         info["min_goal_distance"] = min(goal_dist, self.previous_min_goal_dist)
         self.previous_min_goal_dist = info["min_goal_distance"]
-
+        obs["clearance_is_enough"] = info["clearance_is_enough"]
+        if not collision:
+            self.episode_cost += info["clearance_is_enough"]
+        else:
+            self.episode_cost += math.fabs(self.collision_penalty)
+        info["episode_cost"] = self.episode_cost
+        
         return obs, reward, done, info
     
     def robot_goal_obs(self) -> np.ndarray:
@@ -543,7 +550,7 @@ class GCSafetyGymBase(SafetyGymBase):
             offset += k_size
         return flat_obs
     
-    def get_obs(self, arrive):
+    def get_obs(self, arrive=False):
         if len(self.state_history) >= self.history_len:
             self.state_history.popleft()
         if len(self.goal_history) >= self.history_len:
