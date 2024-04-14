@@ -34,7 +34,7 @@ class Continuous2DNav(EnvBase):
         self.arrive_radius = 0.1
         self.robot_radius = 0.1
         self.obstacle_in_obs = OBSTACLES_IN_OBSERVATION
-        self.obstacle_radius = 0.15
+        self.obstacle_radius = 0.09
         self.collision_penalty = -0.01
         self.arrive_reward = 0
         self.step_size = 0.01
