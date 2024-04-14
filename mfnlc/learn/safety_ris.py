@@ -195,7 +195,7 @@ class SafetyRis(SAC):
         self.actor_target = deepcopy(self.actor)
         self.critic_target = deepcopy(self.critic)
         self.actor_optimizer = th.optim.Adam(self.actor.parameters(), lr=self.pi_lr)
-        self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=self.q_lr)
+        self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=self.q_lr, weight_decay=0.00001)
     
     def sample_and_preprocess_batch(self, replay_buffer, env, batch_size=256, device=th.device("cuda")):
         # Extract 
