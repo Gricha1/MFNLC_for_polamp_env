@@ -1,0 +1,6 @@
+,total_step,goal_met,collision,reward_sum,cost_sum
+0,86,True,False,17.021028913625166,0.0
+1,46,True,False,16.778529296661404,646.0
+2,65,True,False,17.035127884419555,357.0
+3,56,True,False,14.907216701309915,0.0
+4,52,True,False,17.061858958664374,0.0

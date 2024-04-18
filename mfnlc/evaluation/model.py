@@ -20,7 +20,7 @@ class CPOWrapper:
         return res.flatten(), None
 
 
-def load_model(env_name, algo):
+def load_model(env_name, algo, pretrained=False):
     robot_name = env_name.split("-")[0]
 
     if "lyapunov" in algo:
@@ -29,13 +29,13 @@ def load_model(env_name, algo):
         env = get_env(env_name)
 
     if algo == "lyapunov_td3" or algo == "rrt_lyapunov":
-        model = LyapunovTD3.load(get_path(robot_name, "lyapunov_td3", "model"), env=env)
+        model = LyapunovTD3.load(get_path(robot_name, "lyapunov_td3", "model", pretrained), env=env)
     elif algo == "td3":
-        model = TD3.load(get_path(robot_name, "td3", "model"), env=env)
+        model = TD3.load(get_path(robot_name, "td3", "model", pretrained), env=env)
     elif algo == "ppo":
-        model = PPO.load(get_path(robot_name, "ppo", "model"), env=env)
+        model = PPO.load(get_path(robot_name, "ppo", "model", pretrained), env=env)
     elif algo == "e2e" or algo == "rrt_e2e":
-        model = TD3.load(get_path(robot_name, "e2e", "model"), env=env)
+        model = TD3.load(get_path(robot_name, "e2e", "model", pretrained), env=env)
     elif algo == "cpo" or algo == "rrt_cpo":
         return CPOWrapper(robot_name)
     else:

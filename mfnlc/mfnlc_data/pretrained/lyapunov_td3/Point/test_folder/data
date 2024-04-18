@@ -1,0 +1,128 @@
+{
+    "policy_class": {
+        ":type:": "<class 'abc.ABCMeta'>",
+        ":serialized:": "gAWVMAAAAAAAAACMHnN0YWJsZV9iYXNlbGluZXMzLnRkMy5wb2xpY2llc5SMCVREM1BvbGljeZSTlC4=",
+        "__module__": "stable_baselines3.td3.policies",
+        "__doc__": "\n    Policy class (with both actor and critic) for TD3.\n\n    :param observation_space: Observation space\n    :param action_space: Action space\n    :param lr_schedule: Learning rate schedule (could be constant)\n    :param net_arch: The specification of the policy and value networks.\n    :param activation_fn: Activation function\n    :param features_extractor_class: Features extractor to use.\n    :param features_extractor_kwargs: Keyword arguments\n        to pass to the features extractor.\n    :param normalize_images: Whether to normalize images or not,\n         dividing by 255.0 (True by default)\n    :param optimizer_class: The optimizer to use,\n        ``th.optim.Adam`` by default\n    :param optimizer_kwargs: Additional keyword arguments,\n        excluding the learning rate, to pass to the optimizer\n    :param n_critics: Number of critic networks to create.\n    :param share_features_extractor: Whether to share or not the features extractor\n        between the actor and the critic (this saves computation time)\n    ",
+        "__init__": "<function TD3Policy.__init__ at 0x7ff35c7931f0>",
+        "_build": "<function TD3Policy._build at 0x7ff35c793280>",
+        "_get_constructor_parameters": "<function TD3Policy._get_constructor_parameters at 0x7ff35c793310>",
+        "make_actor": "<function TD3Policy.make_actor at 0x7ff35c7933a0>",
+        "make_critic": "<function TD3Policy.make_critic at 0x7ff35c793430>",
+        "forward": "<function TD3Policy.forward at 0x7ff35c7934c0>",
+        "_predict": "<function TD3Policy._predict at 0x7ff35c793550>",
+        "set_training_mode": "<function TD3Policy.set_training_mode at 0x7ff35c7935e0>",
+        "__abstractmethods__": "frozenset()",
+        "_abc_impl": "<_abc_data object at 0x7ff35c7921e0>"
+    },
+    "verbose": 1,
+    "policy_kwargs": {
+        "net_arch": [
+            64,
+            64
+        ]
+    },
+    "observation_space": {
+        ":type:": "<class 'gym.spaces.box.Box'>",
+        ":serialized:": "gAWV2wEAAAAAAACMDmd5bS5zcGFjZXMuYm94lIwDQm94lJOUKYGUfZQojAVkdHlwZZSMBW51bXB5lGgFk5SMAmY0lImIh5RSlChLA4wBPJROTk5K/////0r/////SwB0lGKMBl9zaGFwZZRLDoWUjANsb3eUjBJudW1weS5jb3JlLm51bWVyaWOUjAtfZnJvbWJ1ZmZlcpSTlCiWOAAAAAAAAAAAACDBAAAgwQAAIMEAACDBAAAgwQAAIMEAACDBAAAgwQAAIMEAACDBAAAgwQAAIMEAACDBAAAgwZRoCksOhZSMAUOUdJRSlIwEaGlnaJRoEiiWOAAAAAAAAAAAACBBAAAgQQAAIEEAACBBAAAgQQAAIEEAACBBAAAgQQAAIEEAACBBAAAgQQAAIEEAACBBAAAgQZRoCksOhZRoFXSUUpSMDWJvdW5kZWRfYmVsb3eUaBIolg4AAAAAAAAAAQEBAQEBAQEBAQEBAQGUaAeMAmIxlImIh5RSlChLA4wBfJROTk5K/////0r/////SwB0lGJLDoWUaBV0lFKUjA1ib3VuZGVkX2Fib3ZllGgSKJYOAAAAAAAAAAEBAQEBAQEBAQEBAQEBlGghSw6FlGgVdJRSlIwKX25wX3JhbmRvbZROdWIu",
+        "dtype": "float32",
+        "_shape": [
+            14
+        ],
+        "low": "[-10. -10. -10. -10. -10. -10. -10. -10. -10. -10. -10. -10. -10. -10.]",
+        "high": "[10. 10. 10. 10. 10. 10. 10. 10. 10. 10. 10. 10. 10. 10.]",
+        "bounded_below": "[ True  True  True  True  True  True  True  True  True  True  True  True\n  True  True]",
+        "bounded_above": "[ True  True  True  True  True  True  True  True  True  True  True  True\n  True  True]",
+        "_np_random": null
+    },
+    "action_space": {
+        ":type:": "<class 'gym.spaces.box.Box'>",
+        ":serialized:": "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",
+        "dtype": "float32",
+        "_shape": [
+            2
+        ],
+        "low": "[-1. -1.]",
+        "high": "[1. 1.]",
+        "bounded_below": "[ True  True]",
+        "bounded_above": "[ True  True]",
+        "_np_random": "RandomState(MT19937)"
+    },
+    "n_envs": 1,
+    "num_timesteps": 200167,
+    "_total_timesteps": 200000,
+    "_num_timesteps_at_start": 0,
+    "seed": null,
+    "action_noise": {
+        ":type:": "<class 'stable_baselines3.common.noise.OrnsteinUhlenbeckActionNoise'>",
+        ":serialized:": "gAWVjwEAAAAAAACMHnN0YWJsZV9iYXNlbGluZXMzLmNvbW1vbi5ub2lzZZSMHE9ybnN0ZWluVWhsZW5iZWNrQWN0aW9uTm9pc2WUk5QpgZR9lCiMBl90aGV0YZRHP8MzMzMzMzOMA19tdZSMEm51bXB5LmNvcmUubnVtZXJpY5SMC19mcm9tYnVmZmVylJOUKJYQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACUjAVudW1weZSMBWR0eXBllJOUjAJpOJSJiIeUUpQoSwOMATyUTk5OSv////9K/////0sAdJRiSwKFlIwBQ5R0lFKUjAZfc2lnbWGUaAkolhAAAAAAAAAAmpmZmZmZyT+amZmZmZnJP5RoDYwCZjiUiYiHlFKUKEsDaBFOTk5K/////0r/////SwB0lGJLAoWUaBR0lFKUjANfZHSURz+EeuFHrhR7jA1pbml0aWFsX25vaXNllE6MCm5vaXNlX3ByZXaUaAkolhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJRoEEsChZRoFHSUUpR1Yi4=",
+        "_theta": 0.15,
+        "_mu": "[0 0]",
+        "_sigma": "[0.2 0.2]",
+        "_dt": 0.01,
+        "initial_noise": null,
+        "noise_prev": "[0 0]"
+    },
+    "start_time": 1712935573.5259433,
+    "learning_rate": 0.001,
+    "tensorboard_log": "/usr/home/workspace/mfnlc/mfnlc_data/lyapunov_td3/Point/log",
+    "lr_schedule": {
+        ":type:": "<class 'function'>",
+        ":serialized:": "gAWVwwIAAAAAAACMF2Nsb3VkcGlja2xlLmNsb3VkcGlja2xllIwOX21ha2VfZnVuY3Rpb26Uk5QoaACMDV9idWlsdGluX3R5cGWUk5SMCENvZGVUeXBllIWUUpQoSwFLAEsASwFLAUsTQwSIAFMAlE6FlCmMAV+UhZSMSC9vcHQvY29uZGEvbGliL3B5dGhvbjMuOC9zaXRlLXBhY2thZ2VzL3N0YWJsZV9iYXNlbGluZXMzL2NvbW1vbi91dGlscy5weZSMBGZ1bmOUS4BDAgABlIwDdmFslIWUKXSUUpR9lCiMC19fcGFja2FnZV9flIwYc3RhYmxlX2Jhc2VsaW5lczMuY29tbW9ulIwIX19uYW1lX1+UjB5zdGFibGVfYmFzZWxpbmVzMy5jb21tb24udXRpbHOUjAhfX2ZpbGVfX5SMSC9vcHQvY29uZGEvbGliL3B5dGhvbjMuOC9zaXRlLXBhY2thZ2VzL3N0YWJsZV9iYXNlbGluZXMzL2NvbW1vbi91dGlscy5weZR1Tk5oAIwQX21ha2VfZW1wdHlfY2VsbJSTlClSlIWUdJRSlIwcY2xvdWRwaWNrbGUuY2xvdWRwaWNrbGVfZmFzdJSMEl9mdW5jdGlvbl9zZXRzdGF0ZZSTlGgffZR9lChoFmgNjAxfX3F1YWxuYW1lX1+UjBljb25zdGFudF9mbi48bG9jYWxzPi5mdW5jlIwPX19hbm5vdGF0aW9uc19flH2UjA5fX2t3ZGVmYXVsdHNfX5ROjAxfX2RlZmF1bHRzX1+UTowKX19tb2R1bGVfX5RoF4wHX19kb2NfX5ROjAtfX2Nsb3N1cmVfX5RoAIwKX21ha2VfY2VsbJSTlEc/UGJN0vGp/IWUUpSFlIwXX2Nsb3VkcGlja2xlX3N1Ym1vZHVsZXOUXZSMC19fZ2xvYmFsc19flH2UdYaUhlIwLg=="
+    },
+    "_last_obs": {
+        ":type:": "<class 'numpy.ndarray'>",
+        ":serialized:": "gAWVrQAAAAAAAACMEm51bXB5LmNvcmUubnVtZXJpY5SMC19mcm9tYnVmZmVylJOUKJY4AAAAAAAAAP4dlj9Fgdg+AAAAAAAAAADD9RxBAAAAAAAAAAAAAAAA/+/tvvroPD4AAAAAAAAAAAAAAAAAAAAAlIwFbnVtcHmUjAVkdHlwZZSTlIwCZjSUiYiHlFKUKEsDjAE8lE5OTkr/////Sv////9LAHSUYksBSw6GlIwBQ5R0lFKULg=="
+    },
+    "_last_episode_starts": {
+        ":type:": "<class 'numpy.ndarray'>",
+        ":serialized:": "gAWVdAAAAAAAAACMEm51bXB5LmNvcmUubnVtZXJpY5SMC19mcm9tYnVmZmVylJOUKJYBAAAAAAAAAAGUjAVudW1weZSMBWR0eXBllJOUjAJiMZSJiIeUUpQoSwOMAXyUTk5OSv////9K/////0sAdJRiSwGFlIwBQ5R0lFKULg=="
+    },
+    "_last_original_obs": {
+        ":type:": "<class 'numpy.ndarray'>",
+        ":serialized:": "gAWVrQAAAAAAAACMEm51bXB5LmNvcmUubnVtZXJpY5SMC19mcm9tYnVmZmVylJOUKJY4AAAAAAAAAJl9kz9o6qy/UZf3vws8nr/D9RxBAAAAAAAAAABqk0FAkz/EvrBipD4AAAAA/UfPvtUpJD8AAAAAlIwFbnVtcHmUjAVkdHlwZZSTlIwCZjSUiYiHlFKUKEsDjAE8lE5OTkr/////Sv////9LAHSUYksBSw6GlIwBQ5R0lFKULg=="
+    },
+    "_episode_num": 1153,
+    "use_sde": false,
+    "sde_sample_freq": -1,
+    "_current_progress_remaining": -0.0008349999999999191,
+    "ep_info_buffer": {
+        ":type:": "<class 'collections.deque'>",
+        ":serialized:": "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"
+    },
+    "ep_success_buffer": {
+        ":type:": "<class 'collections.deque'>",
+        ":serialized:": "gAWVIAAAAAAAAACMC2NvbGxlY3Rpb25zlIwFZGVxdWWUk5QpS2SGlFKULg=="
+    },
+    "_n_updates": 200167,
+    "buffer_size": 1000000,
+    "batch_size": 1024,
+    "learning_starts": 100,
+    "tau": 0.005,
+    "gamma": 0.99,
+    "gradient_steps": -1,
+    "optimize_memory_usage": false,
+    "replay_buffer_class": {
+        ":type:": "<class 'abc.ABCMeta'>",
+        ":serialized:": "gAWVNQAAAAAAAACMIHN0YWJsZV9iYXNlbGluZXMzLmNvbW1vbi5idWZmZXJzlIwMUmVwbGF5QnVmZmVylJOULg==",
+        "__module__": "stable_baselines3.common.buffers",
+        "__doc__": "\n    Replay buffer used in off-policy algorithms like SAC/TD3.\n\n    :param buffer_size: Max number of element in the buffer\n    :param observation_space: Observation space\n    :param action_space: Action space\n    :param device:\n    :param n_envs: Number of parallel environments\n    :param optimize_memory_usage: Enable a memory efficient variant\n        of the replay buffer which reduces by almost a factor two the memory used,\n        at a cost of more complexity.\n        See https://github.com/DLR-RM/stable-baselines3/issues/37#issuecomment-637501195\n        and https://github.com/DLR-RM/stable-baselines3/pull/28#issuecomment-637559274\n        Cannot be used in combination with handle_timeout_termination.\n    :param handle_timeout_termination: Handle timeout termination (due to timelimit)\n        separately and treat the task as infinite horizon task.\n        https://github.com/DLR-RM/stable-baselines3/issues/284\n    ",
+        "__init__": "<function ReplayBuffer.__init__ at 0x7ff35c77a4c0>",
+        "add": "<function ReplayBuffer.add at 0x7ff35c77a550>",
+        "sample": "<function ReplayBuffer.sample at 0x7ff35c77a5e0>",
+        "_get_samples": "<function ReplayBuffer._get_samples at 0x7ff35c77a670>",
+        "__abstractmethods__": "frozenset()",
+        "_abc_impl": "<_abc_data object at 0x7ff35c809360>"
+    },
+    "replay_buffer_kwargs": {},
+    "train_freq": {
+        ":type:": "<class 'stable_baselines3.common.type_aliases.TrainFreq'>",
+        ":serialized:": "gAWVZAAAAAAAAACMJXN0YWJsZV9iYXNlbGluZXMzLmNvbW1vbi50eXBlX2FsaWFzZXOUjAlUcmFpbkZyZXGUk5RLAWgAjBJUcmFpbkZyZXF1ZW5jeVVuaXSUk5SMB2VwaXNvZGWUhZRSlIaUgZQu"
+    },
+    "use_sde_at_warmup": false,
+    "policy_delay": 2,
+    "target_noise_clip": 0.5,
+    "target_policy_noise": 0.2,
+    "lqf_loss_cnst": 0.2,
+    "q_sigma": 0
+}

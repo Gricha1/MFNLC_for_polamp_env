@@ -1,0 +1,7 @@
+OS: Linux-5.4.0-150-generic-x86_64-with-glibc2.10 #167~18.04.1-Ubuntu SMP Wed May 24 00:51:42 UTC 2023
+Python: 3.8.5
+Stable-Baselines3: 1.6.0
+PyTorch: 1.12.1+cu113
+GPU Enabled: True
+Numpy: 1.24.4
+Gym: 0.21.0

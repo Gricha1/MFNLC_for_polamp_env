@@ -1,3 +1,11 @@
+import sys
+import importlib.util
+
+SPEC_OS = importlib.util.find_spec('mfnlc')
+os1 = importlib.util.module_from_spec(SPEC_OS)
+SPEC_OS.loader.exec_module(os1)
+sys.modules['shrl'] = os1
+
 import os
 import random
 from typing import Dict
@@ -39,35 +47,42 @@ def evaluate(env_name,
              check_plan: bool = False,
              video: bool = False,
              render_config: Dict = {},  # noqa
-             seed: int = None
+             seed: int = None, 
+             pretrained: bool = False,
              ):
-    model: LyapunovTD3 = load_model(env_name, algo=ALGO)
+    model: LyapunovTD3 = load_model(env_name, algo=ALGO, pretrained=pretrained)
     env = ObstacleMaskWrapper(get_env(env_name))
 
     env.seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
-    choose_level(env, level)
+    choose_level(env, level) # doesnt work fix position
+
     if render:
-        #robot_name = env_name.split("-")[0]
-        #algo = "lyapunov_td3"
-        #tensorboard_log = get_path(robot_name, algo, "log")
         tensorboard_log = get_path(robot_name=env.robot_name,
-                              algo=ALGO, task="video") + f"{planning_algo}-level-{level}"
+                              algo=ALGO, task="video") + \
+                              f" pretrained: {pretrained}"
+        log_idx = 0
+        while os.path.exists(tensorboard_log + f"_{log_idx}"):
+            log_idx += 1
+        tensorboard_log += f"_{log_idx}"
         writer = SummaryWriter(tensorboard_log)
+        print("log dir:", tensorboard_log)
 
     if video:
         video_path = get_path(robot_name=env.robot_name,
                               algo=ALGO, task="video") + f"{planning_algo}-level-{level}"
         env = VideoMonitor(env, video_path, force=True)
     planner = Planner(env, planning_algo)
-    lv_table = LyapunovValueTable.load(get_path(env.robot_name, ALGO, "lv_table"))
+    lv_table = LyapunovValueTable.load(get_path(env.robot_name, ALGO, "lv_table", pretrained=pretrained))
     monitor = Monitor(lv_table, max_step_size=monitor_max_step_size, search_step_size=monitor_search_step_size)
     monitor = None
 
     i = 0
-    visual_episodes = [0, 20, 40]
+    visual_episodes = [i for i in range(n_rollout) if (i + 1) % 5 == 0]
+    print("visual_episodes:", visual_episodes)
+    
     running_data = {
         "total_step": [],
         "goal_met": [],
@@ -75,9 +90,11 @@ def evaluate(env_name,
         "reward_sum": [],
         "cost_sum": []
     }
+    replan_idxs = []
 
     re_plan = False
     while i < n_rollout:
+        print(f"********** task {i}:")
         if not re_plan:
             # reset video monitor
             env.reset()
@@ -86,13 +103,9 @@ def evaluate(env_name,
         path = planner.plan(planner_max_iter, **planning_algo_kwargs)
         if check_plan:
             image_plan = plot_path_2d(planner.algo.search_space, path, planner.algo.tree)
-            if render and (i in visual_episodes):
-                print("add image plan to tensorboard")
-                image_plan = np.transpose(np.array([image_plan]), axes=[0, 3, 1, 2])
-                image_plan = th.ByteTensor([image_plan])
-                writer.add_video('eval_plan', image_plan, global_step=i, fps=30)
         if len(path) == 0:
             re_plan = True
+            replan_idxs.append(i)
             continue
         re_plan = False
 
@@ -103,21 +116,27 @@ def evaluate(env_name,
                    arrive_radius=arrive_radius,
                    monitor=monitor,
                    render=(render and (i in visual_episodes)),
-                   render_config=render_config)
+                   render_config=render_config,
+                   planner=planner)
         for k in res:
             if render and k == "screens" and (i in visual_episodes):
                 print("add video to tensorboard")
                 writer.add_video('eval_trajectory', res[k], global_step=i, fps=30)
                 continue
+            print(f"{k}:", res[k])
             running_data[k].append(res[k])
         i += 1
+        print("**********")
+        print()
 
     stat = pd.DataFrame(running_data)
-
-    res_dir = get_path(robot_name=env.robot_name, algo=ALGO, task="evaluation") + f"/{planning_algo}"
-    os.makedirs(res_dir, exist_ok=True)
-    stat.to_csv(res_dir + f"/{level}.csv")
-    print("results are saved to:", res_dir + f"/{level}.csv")
+    print("result data:", running_data)
+    print("replan_idxs:", replan_idxs)
+    for k in running_data:
+        print(f"mean {k}", np.mean(running_data[k]))
+    
+    stat.to_csv(tensorboard_log + f"/{level}.csv")
+    print("results are saved to:", tensorboard_log + f"/{level}.csv")
 
     for key_ in running_data:
         writer.add_scalar(f'testing/mean_{key_}', np.mean(running_data[key_]), 0)
@@ -135,8 +154,9 @@ def build_lyapunov_table(env_name: str,
                          pgd_lr: float = 1e-3,
                          n_range_est_sample: int = 10,
                          n_radius_est_sample: int = 10,
-                         bound_cnst: float = 100):
-    model: LyapunovTD3 = load_model(env_name, algo=ALGO)
+                         bound_cnst: float = 100,
+                         pretrained: bool = False):
+    model: LyapunovTD3 = load_model(env_name, algo=ALGO, pretrained=pretrained)
     lv_table = LyapunovValueTable(model.tclf,
                                   obs_lb,
                                   obs_ub,
@@ -150,4 +170,4 @@ def build_lyapunov_table(env_name: str,
     print(lv_table.lyapunov_values)
     print(lv_table.lyapunov_radius)
     robot_name = env_name.split("-")[0]
-    lv_table.save(get_path(robot_name, algo=ALGO, task="lv_table"))
+    lv_table.save(get_path(robot_name, algo=ALGO, task="lv_table", pretrained=pretrained))

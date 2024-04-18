@@ -6,13 +6,11 @@ from mfnlc.exps.check_results import print_all_results, print_level_results
 ENV_NAME = "Point-eval"
 
 
-def rrt_lyapunov(planning_algo):
-    level = 1
+def rrt_lyapunov(planning_algo, level, n_tasks, pretrained):
     i = level
-    n_tasks = 50
     #for i in range(1, 4):
     print(f"{ENV_NAME} - RRT + Lyapunov-TD3 - level {i}")
-    evaluate(ENV_NAME,
+    stat, _ = evaluate(ENV_NAME,
             n_rollout=n_tasks,
             level=i,
             planning_algo=planning_algo,
@@ -29,25 +27,34 @@ def rrt_lyapunov(planning_algo):
                 "scale": 7 * i
             },
             video=False,
-            seed=0)
+            seed=0,
+            pretrained=pretrained)
+    
+    return stat
 
 
-def build_lv_table():
+def build_lv_table(pretrained):
     print("start table building ...")
     lb = np.array([-1, -1, -1, -1, 9.8, -1, -1, -1, -1, -1, -1, -1, -1, -1])
     ub = np.array([1, 1, 1, 1, 9.81, 1, 1, 1, 1, 1, 1, 1, 1, 1])
     build_lyapunov_table(ENV_NAME,
                          lb, ub,
                          pgd_max_iter=500,
-                         n_radius_est_sample=40)
+                         n_radius_est_sample=40,
+                         pretrained=pretrained)
     print("end table building")
 
 
 if __name__ == '__main__':
     level = 1
-    build_lv_table()
-    rrt_lyapunov("rrt*")
-    #print_all_results(ENV_NAME, "rrt_lyapunov", "rrt*")
-    print_level_results(ENV_NAME, "rrt_lyapunov", level, "rrt*")
-    
+    n_tasks = 40
+    pretrained = True
+    if pretrained:
+        print("LOAD PRETRAINED WEIGHTS")
+    else:
+        print("LOAD OWN WEIGHTS")
+    print("Validation levels:", level)
+    build_lv_table(pretrained)
+    stat = rrt_lyapunov("rrt*", level, n_tasks, pretrained)
+    print_level_results(ENV_NAME, "rrt_lyapunov", level, "rrt*", with_cost=True)
     input("Press Enter to continue...")

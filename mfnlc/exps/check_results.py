@@ -1,28 +1,39 @@
 import pandas as pd
 
-from mfnlc.evaluation.data import reach_perc, steps_to_reach, safety_vio
+from mfnlc.evaluation.data import reach_perc, steps_to_reach, safety_vio, cost
 
 
 def results_stat(env_name: str,
                  algo: str,
                  level: int,
-                 planning_algo: str):
+                 planning_algo: str,
+                 with_cost: bool = False):
     reach_perc_data = reach_perc(env_name, algo, planning_algo, level)
     steps_to_reach_data = steps_to_reach(env_name, algo, planning_algo, level)
     safety_vio_data = safety_vio(env_name, algo, planning_algo, level)
+    cost_data = cost(env_name, algo, planning_algo, level)
 
-    stat = {
-        "Level": [level],
-        "Reach Perc.": [reach_perc_data],
-        "# Reach Step": ["{0:.2f} ± {1:.2f}".format(*steps_to_reach_data)],
-        "Safety Vio.": [safety_vio_data]
-    }
+    if with_cost:
+        stat = {
+            "Level": [level],
+            "Reach Perc.": [reach_perc_data],
+            "# Reach Step": ["{0:.2f} ± {1:.2f}".format(*steps_to_reach_data)],
+            "Safety Vio.": [safety_vio_data],
+            "Cost": [cost_data],
+        }
+    else:
+        stat = {
+            "Level": [level],
+            "Reach Perc.": [reach_perc_data],
+            "# Reach Step": ["{0:.2f} ± {1:.2f}".format(*steps_to_reach_data)],
+            "Safety Vio.": [safety_vio_data],
+        }
 
     return pd.DataFrame(stat)
 
 
-def print_level_results(env_name, algo, level, planning_algo=None):
-    level_res = [results_stat(env_name, algo, level, planning_algo)]
+def print_level_results(env_name, algo, level, planning_algo=None, with_cost=False):
+    level_res = [results_stat(env_name, algo, level, planning_algo, with_cost=with_cost)]
     res_df = pd.concat(level_res, ignore_index=True).set_index("Level")
     print(res_df)
 

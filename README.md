@@ -69,6 +69,12 @@ One can start tracing code from `exps` folder.
 
 
 
+# docker
+
+docker exec -it gregory_SafetyRIS bash
+cd /usr/home/workspace
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bin
+
 
 # changed to deps
 you need Python 3.8.5
@@ -148,3 +154,6 @@ pip install cloudpickle==2.1.0
 # train&validate lyapunov RRT
 python exps/train/no_obstacle/custom_lyapunov_td3/point.py
 python exps/hierachical/custom_rrt_lyapunov/point.py
+
+# train&validate CPO
+python exps/no_planner/cpo/point.py

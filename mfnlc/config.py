@@ -80,8 +80,10 @@ env_config = {
 }
 
 
-def get_path(robot_name, algo, task):
+def get_path(robot_name, algo, task, pretrained=False):
     data_root = f"{ROOT}/mfnlc_data"
+    if pretrained:
+        data_root += "/pretrained"
     if task == "log":
         return f"{data_root}/{algo}/{robot_name}/{task}"
     elif task == "model":

@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 from mfnlc.config import get_path
 
@@ -30,3 +31,9 @@ def steps_to_reach(env_name, algo, planning_algo, level):
 def safety_vio(env_name, algo, planning_algo, level):
     log_df = read_log(env_name, algo, planning_algo, level)
     return log_df["collision"].sum() / len(log_df)
+
+
+def cost(env_name, algo, planning_algo, level):
+    log_df = read_log(env_name, algo, planning_algo, level)
+    print("log_df:", log_df["cost_sum"])
+    return np.mean(log_df["cost_sum"])

@@ -8,6 +8,8 @@ from mfnlc.envs import get_env
 from mfnlc.evaluation.model import load_model
 from mfnlc.monitor.monitor import Monitor
 from mfnlc.plan.common.path import Path
+from mfnlc.plan.common.plot import plot_path_2d
+from mfnlc.plan import Planner
 
 
 def inspect_training_simu(env_name: str,
@@ -64,7 +66,8 @@ def simu(env,
          arrive_radius: float = 0.0,
          monitor: Monitor = None,
          render: bool = False,
-         render_config: Dict = {}  # noqa
+         render_config: Dict = {},  # noqa
+         planner: Planner = None
          ):
     obs = env.get_obs()
 
@@ -78,8 +81,6 @@ def simu(env,
     env.set_render_config(render_config)
     if render:
         screens = []
-        screen = env.custom_render()
-        screens.append(screen.transpose(2, 0, 1))
 
     total_step = 0
     goal_met = False
@@ -90,9 +91,10 @@ def simu(env,
     for i in range(n_steps):
         action = model.predict(obs)[0]
         obs, reward, done, info = env.step(action)
+        assert not info.get("collision") or (info.get("collision") and done)
         total_step += 1
         reward_sum += reward
-        cost_sum += info["episode_cost"]
+        cost_sum = info["episode_cost"]
 
         if path is not None:
             if np.linalg.norm(env.robot_pos - path[subgoal_index]) < arrive_radius:
@@ -108,9 +110,23 @@ def simu(env,
             env.set_subgoal(subgoal, store=False)
             #env.set_roa(subgoal, lyapunov_r)  # noqa
 
+        step_info = {"t": i, 
+                     "acc_reward": reward_sum, 
+                     "acc_cost": cost_sum, 
+                    }
         if render:
-            screen = env.custom_render()
-            screens.append(screen.transpose(2, 0, 1))
+            if (planner is None): # cpo
+                screen = plot_path_2d(None, path, None, 
+                                      plot_current_pose=True, 
+                                      curret_pose=env.robot_pos, 
+                                      goal_pose=env.env.goal_pos[:2],
+                                      obst_poses=env.env.hazards_pos, 
+                                      step_info=step_info) 
+            else: # lyapunov
+                screen = plot_path_2d(planner.algo.search_space, path, planner.algo.tree, 
+                                    plot_current_pose=True, curret_pose=env.robot_pos, 
+                                    step_info=step_info)            
+            screens.append(screen)
 
         if done:
             goal_met = info.get("goal_met", False)
@@ -124,6 +140,7 @@ def simu(env,
                 "reward_sum": reward_sum,
                 "cost_sum": cost_sum}
     else:
+        screens = np.transpose(np.array(screens), axes=[0, 3, 1, 2])
         return {"total_step": total_step,
                 "collision": collision,
                 "goal_met": goal_met,
