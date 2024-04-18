@@ -1,4 +1,5 @@
 import random
+import math
 from typing import Dict
 import copy
 from collections import deque
@@ -11,8 +12,8 @@ from mfnlc.envs.base import EnvBase
 
 CUSTOM_DATASET = False
 FIXED_HAZARDS = False
-DIFFICULTY_LEVEL = 1 # default
-OBSTACLES_IN_OBSERVATION = 8 # default
+DIFFICULTY_LEVEL = 1 
+OBSTACLES_IN_OBSERVATION = 4 
 FRAME_STACK = 1
 COLLISION_PENALTY = -120
 ENV_BOUNDS = False
@@ -402,6 +403,7 @@ class GCContinuous2DNav(Continuous2DNav):
         obs = super().reset(**kwargs)
         assert not obs["collision"], "initial state in collision!!!"
         self.previous_min_goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
+        self.episode_cost = 0
         return obs
 
 
@@ -467,6 +469,18 @@ class GCContinuous2DNav(Continuous2DNav):
         goal_dist = np.linalg.norm(self.goal_obs(), ord=2)
         info["min_goal_distance"] = min(goal_dist, self.previous_min_goal_dist)
         self.previous_min_goal_dist = info["min_goal_distance"]
+
+        # add cost
+        info['clearance_is_enough'] = 0
+        clearance_distance = self.obstacle_radius + self.robot_radius
+        closest_dist = np.min(np.linalg.norm(
+            self.obstacle_centers - self.robot_pos, axis=-1, ord=2))
+        info['clearance_is_enough'] = float(closest_dist <= self.robot_radius + self.obstacle_radius)
+    
+        if not collision:
+            self.episode_cost += info["clearance_is_enough"]
+        else:
+            self.episode_cost += math.fabs(self.collision_penalty)
 
         return obs, reward, done, info
 

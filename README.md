@@ -197,3 +197,7 @@ cd mfnlc
 python exps/train/obstacle/ris/point.py
 ```
 
+# train RIS nav env
+```commandline
+python exps/train/obstacle/ris/nav.py
+```
