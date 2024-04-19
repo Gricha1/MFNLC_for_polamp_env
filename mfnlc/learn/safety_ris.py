@@ -199,7 +199,7 @@ class SafetyRis(SAC):
         self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=self.q_lr)
         if self.safety:
             cost_limit = 3.0
-            max_episode_steps = 300
+            max_episode_steps = 200
             self.cost_limit = cost_limit
 			# we should use the timestep_cost_limit
             self.timestep_cost_limit = cost_limit * (1 - self.gamma ** max_episode_steps) / (1 - self.gamma) / max_episode_steps

@@ -35,8 +35,8 @@ class Continuous2DNav(EnvBase):
         self.arrive_radius = 0.1
         self.robot_radius = 0.1
         self.obstacle_in_obs = OBSTACLES_IN_OBSERVATION
-        self.obstacle_radius = 0.09
-        self.collision_penalty = -0.01
+        self.obstacle_radius = 0.12
+        self.collision_penalty = COLLISION_PENALTY
         self.arrive_reward = 0
         self.step_size = 0.01
         self.robot_name = "Nav"
@@ -186,7 +186,8 @@ class Continuous2DNav(EnvBase):
 
         closest_dist = np.min(np.linalg.norm(
             self.obstacle_centers - self.robot_pos, axis=-1, ord=2))
-        return closest_dist < self.robot_radius + self.obstacle_radius
+        #return closest_dist < self.robot_radius + self.obstacle_radius
+        return closest_dist < self.obstacle_radius
 
     def arrive(self):
         return np.linalg.norm(self.goal - self.robot_pos, ord=2) < self.arrive_radius
@@ -481,6 +482,7 @@ class GCContinuous2DNav(Continuous2DNav):
             self.episode_cost += info["clearance_is_enough"]
         else:
             self.episode_cost += math.fabs(self.collision_penalty)
+        info["episode_cost"] = self.episode_cost
 
         return obs, reward, done, info
 
