@@ -118,9 +118,12 @@ def train(env_name,
             self._is_success_buffer = []
             self._episode_costs = []
             self.old_success_rate = None
+            self.old_collision_rate = None
 
         def _on_step(self) -> bool:
             def run_episodes_and_log_wandb(validation=True, num_episodes=self._n_eval_episodes):
+                print(f"run_episodes_and_log_wandb")
+                self._eval_env.seed(seed=0)
                 if validation:
                     wandb_folder_name = "eval"
                 else:
@@ -273,11 +276,15 @@ def train(env_name,
                     self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_max_cost", 0)
                     self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_min_cost", 0)
                 
-                return success_rate
+                self.logger.dump(step=self.num_timesteps)
+                print(f"logger: {dict(self.logger.name_to_value)}")
+                
+                return success_rate, collision_rate
             
             test_freq_multipier = 4
             if (self.n_calls % self._render_freq == 0):
-                val_success_rate = run_episodes_and_log_wandb(validation=True)
+                print(f"self.n_calls: {self.n_calls}")
+                val_success_rate, collision_rate = run_episodes_and_log_wandb(validation=True)
 
                 # Save (current) results
                 hyperparams_tune = False
@@ -287,8 +294,10 @@ def train(env_name,
                 if not hyperparams_tune:
                     self.model.save(folder)
                 # Save (best) results
-                if self.old_success_rate is None or val_success_rate >= self.old_success_rate:
+                if self.old_success_rate is None or val_success_rate > self.old_success_rate \
+                    or (val_success_rate == self.old_success_rate and collision_rate < self.old_collision_rate):
                     self.old_success_rate = val_success_rate
+                    self.old_collision_rate = collision_rate
                     folder = self.model_save_path + "/" + "best_"
                     if not os.path.exists(folder):
                         os.makedirs(folder)
@@ -325,7 +334,7 @@ def train(env_name,
     if use_wandb:
         run_id = run.id
         video_recorder = VideoRecorderCallback(callback_eval_env, 
-                                            n_eval_episodes=10, 
+                                            n_eval_episodes=40, 
                                             render_freq=validate_freq,
                                             gradient_save_freq=0, # error if > 0 
                                             model_save_path=f"models/{run_id}",
@@ -392,7 +401,7 @@ def train(env_name,
     if use_wandb:
         wandb.config["load_model"] = load_model
     if load_model:
-        folder = "models/m0m2u2vh/"
+        folder = "models/rji638x3/"
         load_results = os.path.isdir(folder)
         assert load_results
         model.load(folder)

@@ -515,6 +515,14 @@ class SafetyRis(SAC):
         return subgoal
 
     def train(self, gradient_steps: int, batch_size: int = 64) -> None:
+
+        if self.custom_replay_buffer.num_steps_can_sample() < batch_size:
+            print(f"------------------------")
+            print(f"train")
+            print(f"------------------------")
+            self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+            return
+        
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
 
