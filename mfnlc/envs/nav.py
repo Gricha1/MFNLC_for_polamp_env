@@ -477,7 +477,7 @@ class GCContinuous2DNav(Continuous2DNav):
         closest_dist = np.min(np.linalg.norm(
             self.obstacle_centers - self.robot_pos, axis=-1, ord=2))
         info['clearance_is_enough'] = float(closest_dist <= self.robot_radius + self.obstacle_radius)
-    
+        obs["clearance_is_enough"] = info["clearance_is_enough"]
         if not collision:
             self.episode_cost += info["clearance_is_enough"]
         else:
