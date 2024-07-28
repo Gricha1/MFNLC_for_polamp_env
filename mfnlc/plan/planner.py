@@ -17,11 +17,13 @@ from mfnlc.plan.rrt_star import RRTStar
 class Planner:
     def __init__(self,
                  env,
-                 algo_name: str = "rrt*"):
+                 algo_name: str = "rrt*",
+                 with_dubins_curve=False):
         self.env = env
         self.algo_name = algo_name
         self.algo = None
         self.support_margin = 0.0
+        self.with_dubins_curve = with_dubins_curve
 
     def plan(self,
              max_iteration: int,
@@ -43,9 +45,9 @@ class Planner:
         robot, arrive_radius, collision_checker_resolution = self._extract_robot_info_from_env(support_margin)
 
         if self.algo_name == "rrt":
-            algo = RRT(search_space, robot, arrive_radius, collision_checker_resolution)
+            algo = RRT(search_space, robot, arrive_radius, collision_checker_resolution, with_dubins_curve=self.with_dubins_curve)
         elif self.algo_name == "rrt*":
-            algo = RRTStar(search_space, robot, arrive_radius, collision_checker_resolution)
+            algo = RRTStar(search_space, robot, arrive_radius, collision_checker_resolution, with_dubins_curve=self.with_dubins_curve)
         else:
             raise NotImplementedError()
 

@@ -72,12 +72,13 @@ class RRT:
                  search_space: SearchSpace,
                  robot: ObjectBase,
                  arrive_radius: Union[np.ndarray, float],
-                 collision_checker_resolution: float):
+                 collision_checker_resolution: float,
+                 with_dubins_curve=False):
 
         self.collision_checker = CollisionChecker()
         self.tree = Tree(search_space)
 
-        self.with_dubins_curve = True
+        self.with_dubins_curve = with_dubins_curve
         if self.with_dubins_curve:
             self.dubins_resolution = 1 # distance between points
         self.search_space = search_space
