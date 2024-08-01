@@ -118,12 +118,15 @@ class RRT:
         if self.with_dubins_curve:
             assert -np.pi <= parent.state[2] <= np.pi, f"angle: {parent.state[2]}"
             assert -np.pi <= vertex.state[2] <= np.pi
+
+            # get dubins path
             parent.state[2] = (parent.state[2] + 2*np.pi) % (2*np.pi) # to [0, 2pi]
             vertex.state[2] = (vertex.state[2] + 2*np.pi) % (2*np.pi) # to [0, 2pi]
             path = dubins.shortest_path(parent.state, vertex.state, self.robot.turning_radius)
             parent.state[2] = parent.state[2] - 2*np.pi if parent.state[2] > np.pi else parent.state[2] # to [-pi, pi]
             vertex.state[2] = vertex.state[2] - 2*np.pi if vertex.state[2] > np.pi else vertex.state[2] # to [-pi, pi]
             configurations, _ = path.sample_many(self.dubins_resolution)
+
             cost = parent.cost + len(configurations)  # Примерная оценка стоимости: длина пути
             for ind, state in enumerate(configurations):
                 assert len(state) == 3, "len state from path should be 3"
@@ -134,13 +137,17 @@ class RRT:
                     for i in range(5):
                         assert state[i] == parent.state[i], "first state == parent"
                 configurations[ind] = state
+                ## check collision intermediate states
+                # environment boundary (because dubins path may exist the boundary)
                 self.robot.state = copy.deepcopy(state)
                 if state[0] < self.search_space.lb[0] or state[0] > self.search_space.ub[0] or \
                    state[1] < self.search_space.lb[1] or state[1] > self.search_space.ub[1]:
                     return True, np.inf, None
+                # collision check with each obstacles
                 for obstacle in self.search_space.obstacles:
                     if self.collision_checker.overlap(self.robot, obstacle):
                         return True, np.inf, None
+            # check collision last state
             self.robot.state = copy.deepcopy(vertex.state) 
             for obstacle in self.search_space.obstacles:
                 if self.collision_checker.overlap(self.robot, obstacle):

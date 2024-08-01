@@ -179,6 +179,8 @@ class CollisionChecker:
         obj_middle.x = middle_x
         obj_middle.y = middle_y
         obj_middle.l = np.sqrt((middle_x - state_1[0]) ** 2 + (middle_y - state_1[1]) ** 2)
+        # test
+        assert obj_middle.theta == obj_1.theta
         if self.overlap(obj_middle, obj_2):
             return True
         

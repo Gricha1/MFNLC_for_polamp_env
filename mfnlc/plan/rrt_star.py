@@ -64,14 +64,14 @@ class RRTStar(RRT):
         best_parent = None
         best_cost = sampled_vertex.cost
 
-        configurations = None
+        best_configurations = None
         for parent in near_vertices:
             collision, new_cost, configurations = self._steer(parent, sampled_vertex)
             if not collision and new_cost < best_cost:
                 best_parent = parent
                 best_cost = best_cost
-
-        return best_parent, best_cost, configurations
+                best_configurations = configurations
+        return best_parent, best_cost, best_configurations
 
     def rewire(self,
                sampled_vertex: Tree.Vertex,
