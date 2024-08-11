@@ -1,4 +1,5 @@
 from typing import Callable, List, Tuple
+import copy
 
 import numpy as np
 
@@ -16,12 +17,32 @@ class RRTStar(RRT):
         final_vertex = None
         for i in range(max_iteration):
             if i % 500 == 0:
-                print("rrt* iter:", i)
+                if not(final_vertex is None):
+                    print("rrt* iter:", i, "path founded")
+                else:
+                    print("rrt* iter:", i)
+
             sampled_vertex = self.tree.sample(heuristic, n_sample)
             near_vertices = self.get_near_vertices(sampled_vertex, ucb_cnst)
 
             parent = self.tree.nearest_vertex(sampled_vertex)
-            collision, cost, configurations = self._steer(parent, sampled_vertex)
+            if self.check_final_vertex_diff_angle and self._arrive(sampled_vertex):
+                goal_heading = sampled_vertex.state[2]
+                d_goal_angle = (30 / 180) * np.pi
+                for angle in np.linspace(goal_heading - d_goal_angle, goal_heading + d_goal_angle, 15):
+                    new_angle = (angle + np.pi) % (2 * np.pi) - np.pi
+
+                    new_goal_vertex = copy.deepcopy(sampled_vertex)
+                    new_goal_vertex_state = sampled_vertex.state
+                    new_goal_vertex_state[2] = new_angle
+                    new_goal_vertex.state = new_goal_vertex_state
+
+                    sampled_vertex = new_goal_vertex
+                    collision, cost, configurations = self._steer(parent, sampled_vertex)
+                    if not collision:
+                        break
+            else:
+                collision, cost, configurations = self._steer(parent, sampled_vertex)
 
             if not collision:
                 if self.with_dubins_curve:

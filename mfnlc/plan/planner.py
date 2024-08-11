@@ -89,7 +89,10 @@ class Planner:
             robot_l = env.environment.agent.dynamic_model.length
             robot = Polygon(initial_state, w=robot_w+safe_w, l=robot_l+safe_l)
             robot.center_state = False
-            robot.turning_radius = env.environment.agent.dynamic_model.wheel_base / np.tan(env.environment.agent.dynamic_model.max_steer) # 2.5
+            turning_radius = env.environment.agent.dynamic_model.wheel_base / np.tan(env.environment.agent.dynamic_model.max_steer) # 2.5
+            #robot.turning_radius = turning_radius - 2.0 # 1.0
+            robot.turning_radius = turning_radius
+            print("turning raduis !!!!!!! =", robot.turning_radius)
             #robot.turning_radius += 0.5
         else:
             robot_radius = env.environment.agent.dynamic_model.width / 2

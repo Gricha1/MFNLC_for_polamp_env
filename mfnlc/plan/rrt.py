@@ -85,6 +85,7 @@ class RRT:
         self.robot = robot
         self.arrive_radius = arrive_radius
         self.collision_checker_resolution = collision_checker_resolution
+        self.check_final_vertex_diff_angle = True
 
     def set_search_space(self, search_space: SearchSpace):
         self.search_space = search_space
@@ -98,11 +99,32 @@ class RRT:
         final_vertex = None
         for i in range(max_iteration):
             if i % 500 == 0:
-                print("rrt iter:", i)
+                if not(final_vertex is None):
+                    print("rrt iter:", i, "path founded")
+                else:
+                    print("rrt iter:", i)
             sampled_vertex = self.tree.sample(heuristic, n_sample)
             parent = self.tree.nearest_vertex(sampled_vertex)
-            collision, cost, _ = self._steer(parent, sampled_vertex)
+            if self.check_final_vertex_diff_angle and self._arrive(sampled_vertex):
+                goal_heading = sampled_vertex.state[2]
+                d_goal_angle = (30 / 180) * np.pi
+                for angle in np.linspace(goal_heading - d_goal_angle, goal_heading + d_goal_angle, 15):
+                    new_angle = (angle + np.pi) % (2 * np.pi) - np.pi
+
+                    new_goal_vertex = copy.deepcopy(sampled_vertex)
+                    new_goal_vertex_state = sampled_vertex.state
+                    new_goal_vertex_state[2] = new_angle
+                    new_goal_vertex.state = new_goal_vertex_state
+
+                    sampled_vertex = new_goal_vertex
+                    collision, cost, configurations = self._steer(parent, sampled_vertex)
+                    if not collision:
+                        break
+            else:
+                collision, cost, configurations = self._steer(parent, sampled_vertex)
             if not collision:
+                if self.with_dubins_curve:
+                    sampled_vertex.kinodynamically_feasible_path = configurations
                 sampled_vertex.cost = cost
                 self.tree.insert_vertex(parent, sampled_vertex)
                 if self._arrive(sampled_vertex):
@@ -122,7 +144,8 @@ class RRT:
             # get dubins path
             parent.state[2] = (parent.state[2] + 2*np.pi) % (2*np.pi) # to [0, 2pi]
             vertex.state[2] = (vertex.state[2] + 2*np.pi) % (2*np.pi) # to [0, 2pi]
-            path = dubins.shortest_path(parent.state, vertex.state, self.robot.turning_radius)
+            path = dubins.shortest_path(parent.state, vertex.state, 
+                                        self.robot.turning_radius) # path = [ (x, y, theta), ...]
             parent.state[2] = parent.state[2] - 2*np.pi if parent.state[2] > np.pi else parent.state[2] # to [-pi, pi]
             vertex.state[2] = vertex.state[2] - 2*np.pi if vertex.state[2] > np.pi else vertex.state[2] # to [-pi, pi]
             configurations, _ = path.sample_many(self.dubins_resolution)
