@@ -108,7 +108,7 @@ class RRT:
             if self.check_final_vertex_diff_angle and self._arrive(sampled_vertex):
                 goal_heading = sampled_vertex.state[2]
                 d_goal_angle = (30 / 180) * np.pi
-                for angle in np.linspace(goal_heading - d_goal_angle, goal_heading + d_goal_angle, 15):
+                for angle in np.linspace(goal_heading - d_goal_angle, goal_heading + d_goal_angle, 30):
                     new_angle = (angle + np.pi) % (2 * np.pi) - np.pi
 
                     new_goal_vertex = copy.deepcopy(sampled_vertex)
@@ -136,7 +136,10 @@ class RRT:
     def _steer(self,
                parent: Tree.Vertex,
                vertex: Tree.Vertex) -> Tuple[bool, float, np.ndarray]:
-        
+               
+        # test
+        debug_off_boundary_check = False
+        debug_off_collision_check = False
         if self.with_dubins_curve:
             assert -np.pi <= parent.state[2] <= np.pi, f"angle: {parent.state[2]}"
             assert -np.pi <= vertex.state[2] <= np.pi
@@ -163,13 +166,17 @@ class RRT:
                 ## check collision intermediate states
                 # environment boundary (because dubins path may exist the boundary)
                 self.robot.state = copy.deepcopy(state)
-                if state[0] < self.search_space.lb[0] or state[0] > self.search_space.ub[0] or \
-                   state[1] < self.search_space.lb[1] or state[1] > self.search_space.ub[1]:
-                    return True, np.inf, None
-                # collision check with each obstacles
-                for obstacle in self.search_space.obstacles:
-                    if self.collision_checker.overlap(self.robot, obstacle):
+                if not debug_off_boundary_check:
+                    # test
+                    if state[0] < self.search_space.lb[0] or state[0] > self.search_space.ub[0] or \
+                            state[1] < self.search_space.lb[1] or state[1] > self.search_space.ub[1]:
                         return True, np.inf, None
+                # collision check with each obstacles
+                if not debug_off_collision_check:
+                    # test
+                    for obstacle in self.search_space.obstacles:
+                        if self.collision_checker.overlap(self.robot, obstacle):
+                            return True, np.inf, None
             # check collision last state
             self.robot.state = copy.deepcopy(vertex.state) 
             for obstacle in self.search_space.obstacles:

@@ -1,11 +1,8 @@
 from typing import Dict
 
 import numpy as np
-#from safety_gym.envs.engine import Engine
 
 from mfnlc.config import env_config
-#from mfnlc.envs import Continuous2DNav
-#from mfnlc.envs.base import SafetyGymBase
 from mfnlc.plan.common.geometry import Circle
 from mfnlc.plan.common.geometry import Polygon
 from mfnlc.plan.common.path import Path
@@ -35,13 +32,13 @@ class Planner:
             self.algo = self._build_planning_algorithm(support_margin)
         else:
             self.support_margin = support_margin
-            search_space = SearchSpace.build_from_env(self.env)
+            search_space = SearchSpace.build_from_env(self.env, with_dubins_curve=self.with_dubins_curve)
             self.algo.set_search_space(search_space)
 
         return self.algo.search(max_iteration, heuristic, n_sample)
 
     def _build_planning_algorithm(self, support_margin: float):
-        search_space = SearchSpace.build_from_env(self.env)
+        search_space = SearchSpace.build_from_env(self.env, with_dubins_curve=self.with_dubins_curve)
         robot, arrive_radius, collision_checker_resolution = self._extract_robot_info_from_env(support_margin)
 
         if self.algo_name == "rrt":
@@ -90,10 +87,8 @@ class Planner:
             robot = Polygon(initial_state, w=robot_w+safe_w, l=robot_l+safe_l)
             robot.center_state = False
             turning_radius = env.environment.agent.dynamic_model.wheel_base / np.tan(env.environment.agent.dynamic_model.max_steer) # 2.5
-            #robot.turning_radius = turning_radius - 2.0 # 1.0
             robot.turning_radius = turning_radius
             print("turning raduis !!!!!!! =", robot.turning_radius)
-            #robot.turning_radius += 0.5
         else:
             robot_radius = env.environment.agent.dynamic_model.width / 2
             robot = Circle(initial_state[:2], robot_radius)

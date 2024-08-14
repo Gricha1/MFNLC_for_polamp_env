@@ -22,7 +22,7 @@ class SearchSpace:
         self.obstacles = obstacles
 
     @classmethod
-    def build_from_env(cls, env) -> 'SearchSpace':
+    def build_from_env(cls, env, with_dubins_curve) -> 'SearchSpace':
 
         lb, ub = env.get_constained_agent_bounds()
         
@@ -32,9 +32,12 @@ class SearchSpace:
         goal_state = np.array([goal.x, goal.y, goal.theta, goal.v, goal.steer])
 
         polygon = True
-        with_dubins_curve = True
         if polygon:
-            if not with_dubins_curve:
+            if with_dubins_curve:
+                # lower bound = [low_x, low_y, low_angle, 0, 0]
+                pass
+            else:
+                # lower bound = [low_x, low_y, 0, 0, 0]
                 lb[2] = 0
                 ub[2] = 0
             assert -np.pi <= initial_state[2] <= np.pi
