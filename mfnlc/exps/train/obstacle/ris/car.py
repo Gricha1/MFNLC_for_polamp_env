@@ -1,3 +1,5 @@
+import argparse
+
 import numpy as np
 from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
 
@@ -5,7 +7,7 @@ from mfnlc.evaluation.simulation import inspect_training_simu
 from mfnlc.exps.train.obstacle.ris.base import train
 
 
-def learn():
+def learn(args):
     train(env_name="GCCar",
           total_timesteps=2_000_000,
           learning_starts=10_000,
@@ -27,6 +29,7 @@ def learn():
           fraction_resampled_goals_are_replay_buffer_goals=0.5, # HER
           critic_max_grad_norm=None, # RIS
           actor_max_grad_norm=None, # RIS
+          use_one_safe_critic=args.use_one_safe_critic,
           n_envs=1,
           batch_size=4096,
           log_interval=4,          
@@ -44,5 +47,8 @@ def evaluate_controller():
 
 
 if __name__ == '__main__':
-    learn()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--use_one_safe_critic", action='store_true', default=False)
+    args = parser.parse_args()
+    learn(args)
     #evaluate_controller()

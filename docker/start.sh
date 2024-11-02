@@ -10,7 +10,7 @@ else
     docker_container_idx=$2
 fi
 
-docker_container_name=ites_safety_gym_$docker_container_idx
+docker_container_name=speis_safety_gym_$docker_container_idx
 image_name=speis_safety_gym_img
 
 echo "start dockergpu device: $device"

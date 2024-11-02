@@ -35,6 +35,36 @@ with open(file, "r") as f:
 default_device = "cuda"
 ROOT = dirname(abspath(mfnlc.__file__))
 
+def create_gc_point_level_2_hazards_fix():
+    n_hazards_in_col = 9
+    count_cols = 2
+    dy = 0.3
+    dx = 1.5
+    y_displacement = 1.4
+    hazards_poses = []
+    start_pose = [-1.2, -2]
+    for j in range(count_cols):
+        start_x = -1.2 + j * dx
+        start_y = -2 + y_displacement * ((j + 1) % 2 == 0)
+        for i in range(n_hazards_in_col):
+            hazards_poses.append([start_x, start_y + dy * i])
+            """
+            [
+            [-1.2, -2],
+            [-1.2, -1.5],
+            [-1.2, -1],  
+            [-1.2, -0.5],
+            [-1.2, 0],
+            [-1.2, 0.5], 
+            [0, 0], 
+            [1.3, 0], 
+            [-0.8, 1.8]
+            ]
+            """
+
+    return (hazards_poses, n_hazards_in_col * count_cols) # poses, hazard_count
+
+
 env_config = {
     "Nav": {
         "max_step": 200,
@@ -163,7 +193,7 @@ env_config = {
             # number of obstacle | map size
             0: [0, [[-2, -2], [2, 2]]],
             1: [8, [[-2, -2], [2, 2]]],
-            2: [32, [[-4, -4], [4, 4]]],
+            2: [create_gc_point_level_2_hazards_fix()[1], [[-2, -2], [2, 2]]],
             3: [128, [[-8, -8], [8, 8]]]
         },
         "fixed_hazard_poses": {
@@ -171,7 +201,9 @@ env_config = {
             1: [[-1.2, -1], [0, -1.4], 
                 [0, 1.1], [1, 1.8], 
                 [0, 0], [1.3, 0],
-                [-1.8, 0], [-0.8, 1.8]]},
+                [-1.8, 0], [-0.8, 1.8]],
+            2: create_gc_point_level_2_hazards_fix()[0]
+        },
         "custom_dataset": {
             "1": []
         }

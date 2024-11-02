@@ -1,3 +1,5 @@
+import argparse
+
 import numpy as np
 from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
 
@@ -5,7 +7,7 @@ from mfnlc.evaluation.simulation import inspect_training_simu
 from mfnlc.exps.train.obstacle.ris.base import train
 
 
-def learn():
+def learn(args):
     train(env_name="GCDoggo",
           total_timesteps=40_000_000,
           learning_starts=10_000,
@@ -30,6 +32,7 @@ def learn():
           critic_max_grad_norm=2.0, # RIS
           actor_max_grad_norm=2.0, # RIS
           subgoal_max_grad_norm=2.0, # RIS
+          use_one_safe_critic=args.use_one_safe_critic,
           n_envs=1,
           batch_size=2048,
           log_interval=4,          
@@ -46,5 +49,8 @@ def evaluate_controller():
 
 
 if __name__ == '__main__':
-    learn()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--use_one_safe_critic", action='store_true', default=False)
+    args = parser.parse_args()
+    learn(args)
     # evaluate_controller()

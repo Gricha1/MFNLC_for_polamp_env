@@ -1,3 +1,5 @@
+import argparse
+
 import numpy as np
 from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
 
@@ -5,9 +7,9 @@ from mfnlc.evaluation.simulation import inspect_training_simu
 from mfnlc.exps.train.obstacle.ris.base import train
 
 
-def learn():
+def learn(args):
     train(env_name="GCPoint",
-          total_timesteps=2_000_000,
+          total_timesteps=args.total_timesteps,
           learning_starts=10_000,
           action_noise=None,
           new_policy_kwargs={"net_arch": [256, 256]},
@@ -27,22 +29,36 @@ def learn():
           fraction_resampled_goals_are_replay_buffer_goals=0.5, # HER
           critic_max_grad_norm=None, # RIS
           actor_max_grad_norm=None, # RIS
+          use_one_safe_critic=args.use_one_safe_critic,
           n_envs=1,
           batch_size=2048,
           log_interval=4,
-          validate_freq=10_000,
+          validate_freq=args.validate_freq,
           use_wandb=True,
-          validate_robot_video=False,
-          validate_subgoal_video=True)
+          validate=args.validate,
+          validate_robot_video=args.validate_robot_video,
+          validate_subgoal_video=args.validate_subgoal_video,
+          load_model=args.load_model,
+          load_model_folder=args.load_model_folder)
 
 
 def evaluate_controller():
-    inspect_training_simu(env_name="Point",
+    inspect_training_simu(env_name="GCPoint",
                           algo="e2e",
                           n_rollout=20,
                           render=True)
 
 
 if __name__ == '__main__':
-    learn()
-    # evaluate_controller()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--use_one_safe_critic", action='store_true', default=False)
+    parser.add_argument("--validate", action='store_true', default=False)
+    parser.add_argument("--load_model", action='store_true', default=False)
+    parser.add_argument("--load_model_folder", default="", type=str)
+    parser.add_argument("--total_timesteps", default=2_000_000, type=int)
+    parser.add_argument("--validate_freq", default=10_000, type=int)
+    parser.add_argument("--validate_robot_video", action='store_true', default=False)
+    parser.add_argument("--validate_subgoal_video", action='store_true', default=False)
+    args = parser.parse_args()
+    learn(args)
+    #evaluate_controller()

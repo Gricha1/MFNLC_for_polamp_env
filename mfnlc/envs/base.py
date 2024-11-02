@@ -15,12 +15,13 @@ from mfnlc.config import env_config
 from collections import deque
 
 CUSTOM_DATASET = False
-FIXED_HAZARDS = False
-DIFFICULTY_LEVEL = 1
-OBSTACLES_IN_OBSERVATION = 4
-FRAME_STACK = 1
+FIXED_HAZARDS = True # False by default
+FIXED_START_END = False # False by default
+DIFFICULTY_LEVEL = 2 # 1 by default
+OBSTACLES_IN_OBSERVATION = 8 # 4 by default
+FRAME_STACK = 4 # 1 by default
 COLLISION_PENALTY = -100
-ENV_BOUNDS = False
+ENV_BOUNDS = True # False by default
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
 PLOT_SUBGOAL_s_to_sg = True
@@ -350,17 +351,23 @@ class GCSafetyGymBase(SafetyGymBase):
             self.custom_dataset["task1"] = [task_1_start, task_1_goal]
             self.custom_dataset["task2"] = [task_2_start, task_2_goal]
         fixed_hazards = FIXED_HAZARDS
+        fixed_start_end = FIXED_START_END
         self.train_dataset["hazards_placements"] = None
         if fixed_hazards:
-            if level > 1:
-                assert 1 == 0, "didnt implement other"
             self.train_dataset["hazards_locations"] = env_config[robot_name]["fixed_hazard_poses"][level]
         else:
             self.train_dataset["hazards_locations"] = []
+        if fixed_start_end:
+            init = 0.9 * self.train_dataset["floor_lb"]
+            goal = np.array([0.9, 0.8]) * self.train_dataset["floor_ub"]
+            self.update_env_config({
+                "robot_locations": [init.tolist()],
+                "goal_locations": [goal.tolist()]
+            })
         self.update_env_config({
             "hazards_num": self.train_dataset["difficulty_config"][0],
             "placements_extents": np.concatenate([self.train_dataset["floor_lb"], self.train_dataset["floor_ub"]]).tolist(),
-            "hazards_keepout": 0.45,
+            "hazards_keepout": 0.1, # 0.45
             "hazards_placements": self.train_dataset["hazards_placements"],
             'hazards_locations': self.train_dataset["hazards_locations"],
             "_seed": 42,
@@ -559,12 +566,12 @@ class GCSafetyGymBase(SafetyGymBase):
             if not arrive:
                 self.goal_history.popleft()
             else:
-                print("we should not remove anything because the goal was changed")
-                print(f"current goal: {self.env.goal_pos[:self.num_relevant_dim]}")
-                print(f"old goal: {self.goal_history[0][:self.num_relevant_dim]}")
-                print(f"current pose: {self.env.robot_pos[:self.num_relevant_dim]}")
+                #print("we should not remove anything because the goal was changed")
+                #print(f"current goal: {self.env.goal_pos[:self.num_relevant_dim]}")
+                #print(f"old goal: {self.goal_history[0][:self.num_relevant_dim]}")
+                #print(f"current pose: {self.env.robot_pos[:self.num_relevant_dim]}")
                 distance = np.sqrt(np.power(np.array(self.env.robot_pos[:self.num_relevant_dim]) - np.array(self.goal_history[0][:self.num_relevant_dim]), 2).sum(-1, keepdims=True))
-                print(f"distance: {distance} and threshold: {self.env.goal_size}")
+                #print(f"distance: {distance} and threshold: {self.env.goal_size}")
 
         state = np.concatenate([
                                self.env.robot_pos[:self.num_relevant_dim],
@@ -610,7 +617,7 @@ class GCSafetyGymBase(SafetyGymBase):
             # robot pose
             x = self.robot_pos[0]
             y = self.robot_pos[1]
-            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="g", alpha=0.5)
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius / 3, color="g", alpha=0.5)
             self.render_info["ax_states"].add_patch(circle_robot) 
             self.render_info["ax_states"].scatter(x, y, color="red")
             self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s")
@@ -625,7 +632,7 @@ class GCSafetyGymBase(SafetyGymBase):
             if self.subgoal_pos is not None and PLOT_SUBGOAL:
                 x = self.subgoal_pos[0]
                 y = self.subgoal_pos[1]
-                circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="orange", alpha=0.5)
+                circle_robot = plt.Circle((x, y), radius=self.robot_radius / 3, color="orange", alpha=0.5)
                 self.render_info["ax_states"].add_patch(circle_robot)
                 self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s_g")
                 if add_subgoal_values:
@@ -634,13 +641,13 @@ class GCSafetyGymBase(SafetyGymBase):
             if PLOT_SUBGOAL_s_to_sg and self.subgoal_s_to_sg_pos is not None:
                 x = self.subgoal_s_to_sg_pos[0]
                 y = self.subgoal_s_to_sg_pos[1]
-                circle_robot = plt.Circle((x, y), radius=self.robot_radius / 3, color="orange", alpha=0.5)
+                circle_robot = plt.Circle((x, y), radius=self.robot_radius / 5, color="orange", alpha=0.5)
                 self.render_info["ax_states"].add_patch(circle_robot)
 
             # goal
             x = self.env.goal_pos[0]
             y = self.env.goal_pos[1]
-            circle_robot = plt.Circle((x, y), radius=self.robot_radius, color="y", alpha=0.5)
+            circle_robot = plt.Circle((x, y), radius=self.robot_radius / 3, color="y", alpha=0.5)
             self.render_info["ax_states"].add_patch(circle_robot) 
             self.render_info["ax_states"].text(x + 0.05, y + 0.05, "g")
             # for distance, angle in zip(env_obs["goal_lidar"], angle_space):
@@ -659,14 +666,14 @@ class GCSafetyGymBase(SafetyGymBase):
             for obs_coord in self.obstacle_observation:
                 self.render_info["ax_states"].plot([x, x + obs_coord[0]],\
                         [y, y + obs_coord[1]],\
-                        '-', linewidth = 2, color='red')
+                        '-', linewidth = 0.5, color='red')
             x = self.env.goal_pos[0]
             y = self.env.goal_pos[1]
             self.obstacle_goal_observation = np.reshape(self.obstacle_goal_observation, (int(self.obstacle_goal_observation.shape[0]/ 2), 2))
-            for obs_coord in self.obstacle_goal_observation:
-                self.render_info["ax_states"].plot([x, x + obs_coord[0]],\
-                        [y, y + obs_coord[1]],\
-                        '-', linewidth = 2, color='green')
+            #for obs_coord in self.obstacle_goal_observation:
+            #    self.render_info["ax_states"].plot([x, x + obs_coord[0]],\
+            #            [y, y + obs_coord[1]],\
+            #            '-', linewidth = 0.5, color='green')
             # debug info
             if len(dubug_info) != 0:
                 a0 = dubug_info["a0"]

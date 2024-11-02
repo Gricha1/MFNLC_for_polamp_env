@@ -60,6 +60,7 @@ def train(env_name,
           fraction_resampled_goals_are_replay_buffer_goals: float = 0.5,
           critic_max_grad_norm: float = None, # RIS
           actor_max_grad_norm: float = None, # RIS
+          use_one_safe_critic = False,
           subgoal_max_grad_norm: float = None, # RIS
           create_eval_env: bool = False,
           policy_to_delete_kwargs: Optional[Dict[str, Any]] = None,
@@ -75,15 +76,29 @@ def train(env_name,
           reset_num_timesteps: bool = True,
           n_envs: int = 1,
           validate_freq: int = 5000,
-          use_wandb = True,
+          use_wandb=True,
+          validate=False,
           validate_robot_video=False,
-          validate_subgoal_video=True
+          validate_subgoal_video=True,
+          load_model=False,
+          load_model_folder=""
           ):
     algo = "ris"
+    if validate:
+        total_timesteps = 1
+        validate_freq = 1
+        test_freq_multipier = 1
+    else:
+        test_freq_multipier = 4
     if use_wandb:
+        if validate:
+            wandb_run_name = f"validate_{algo}_load_model={load_model_folder}"
+        else:
+            wandb_run_name = f"train_{algo}"
         run = wandb.init(
             project="train_safety_ris_safety_gym",
             sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+            name=wandb_run_name,
         )
 
     if n_envs == 1:
@@ -120,8 +135,8 @@ def train(env_name,
             self.old_success_rate = None
 
         def _on_step(self) -> bool:
-            def run_episodes_and_log_wandb(validation=True, num_episodes=self._n_eval_episodes):
-                if validation:
+            def run_episodes_and_log_wandb(validation_dataset=True, num_episodes=self._n_eval_episodes):
+                if validation_dataset:
                     wandb_folder_name = "eval"
                 else:
                     wandb_folder_name = "test"
@@ -185,10 +200,10 @@ def train(env_name,
                             _locals["env"].envs[0].set_subgoal_pos(decoded_subgoal)
                             _locals["env"].envs[0].set_subgoal_pos(decoded_s_to_sg_subgoal, s_to_sg=True)
                         # dubug subgoal
-                        if _locals["episode_counts"][_locals["i"]] == 0 and dubug_info["t"] == 1:
-                            print("state:", state)
-                            print("subgoal:", subgoal[0])
-                            print("goal:", goal)
+                        #if _locals["episode_counts"][_locals["i"]] == 0 and dubug_info["t"] == 1:
+                        #    print("state:", state)
+                        #    print("subgoal:", subgoal[0])
+                        #    print("goal:", goal)
                     # get video
                     if _locals["episode_counts"][_locals["i"]] == 0:
                         if validate_robot_video:
@@ -216,6 +231,7 @@ def train(env_name,
                         if episode_cost is not None:
                             self._episode_costs.append(episode_cost)
 
+                print("---------------- start validation ---------------")
                 episode_rewards, episode_lengths = evaluate_policy(
                     self.model,
                     self._eval_env,
@@ -225,17 +241,33 @@ def train(env_name,
                     deterministic=self._deterministic,
                 )
                 if validate_robot_video:
+                    print("---------------- save robot video ---------------")
                     self.logger.record(
                         f"{wandb_folder_name}/{wandb_folder_name}_video",
                         Video(th.ByteTensor([robot_screens]), fps=40),
                         exclude=("stdout", "log", "json", "csv"),
                     )
                 if validate_subgoal_video:
+                    print("---------------- save subgoal video ---------------")
+                    print("video len:", len(positions_screens))
+                    print("image shape:", positions_screens[0].shape)
                     self.logger.record(
                         f"{wandb_folder_name}/{wandb_folder_name}_pos_video",
-                        Video(th.ByteTensor([positions_screens]), fps=40),
+                        #Video(th.ByteTensor([positions_screens]), fps=40),
+                        th.ByteTensor(np.array([positions_screens])),
                         exclude=("stdout", "log", "json", "csv"),
                     )
+                    # test bug with save video in training
+                    if validate:
+                        wandb_log_dict = {}
+                        if validation_dataset:
+                            prefix = "val_dataset"
+                        else:
+                            prefix = "test_dataset"
+                        wandb_log_dict[f"{prefix}_video"] = \
+                            wandb.Video(np.array(positions_screens), fps=10, format="gif", caption=f"steps: {self.n_calls}")
+                        run.log(wandb_log_dict)
+
                 if validate_robot_video:
                     del robot_screens
                 if validate_subgoal_video:
@@ -272,12 +304,12 @@ def train(env_name,
                     self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_mean_cost", 0)
                     self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_max_cost", 0)
                     self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_min_cost", 0)
-                
+                print("---------------- end validation ---------------")
+
                 return success_rate
             
-            test_freq_multipier = 4
             if (self.n_calls % self._render_freq == 0):
-                val_success_rate = run_episodes_and_log_wandb(validation=True)
+                val_success_rate = run_episodes_and_log_wandb(validation_dataset=True)
 
                 # Save (current) results
                 hyperparams_tune = False
@@ -300,7 +332,7 @@ def train(env_name,
             elif self.n_calls % (test_freq_multipier * self._render_freq + 1) == 0:
                 if not (robot_name == "GCNav"):
                     self._eval_env.set_test_env()
-                    test_success_rate = run_episodes_and_log_wandb(validation=False, num_episodes=100)
+                    test_success_rate = run_episodes_and_log_wandb(validation_dataset=False, num_episodes=100)
                     self._eval_env.set_eval_env()
             else:
                 return super()._on_step()
@@ -346,7 +378,7 @@ def train(env_name,
                             n_Q=2).to(default_device)
     critic_cost = EnsembleCritic(state_dim, action_dim, 
                             hidden_dims=new_policy_kwargs["net_arch"],
-                            n_Q=2).to(default_device)
+                            n_Q=1 if use_one_safe_critic else 2).to(default_device)
     subgoal_net = LaplacePolicy(state_dim=state_dim, 
                                 goal_dim=state_dim, 
                                 hidden_dims=new_policy_kwargs["net_arch"]).to(default_device)
@@ -354,6 +386,10 @@ def train(env_name,
     policy.actor = actor
     policy.critic = critic
     policy.critic_cost = critic_cost
+
+    print("******************************")
+    print("rew critics:", critic.n_Q)
+    print("cost critics:", critic_cost.n_Q)
 
     model = SafetyRis(
         use_encoder,
@@ -388,11 +424,11 @@ def train(env_name,
         tensorboard_log, create_eval_env, policy_to_delete_kwargs, verbose, seed, default_device)
     
     # load model
-    load_model = False
     if use_wandb:
         wandb.config["load_model"] = load_model
     if load_model:
-        folder = "models/m0m2u2vh/"
+        #folder = "models/m0m2u2vh/"
+        folder = f"models/{load_model_folder}/"
         load_results = os.path.isdir(folder)
         assert load_results
         model.load(folder)

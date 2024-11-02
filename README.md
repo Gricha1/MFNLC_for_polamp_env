@@ -10,7 +10,7 @@ sh start.sh
 ```
 
 
-# train SPEIS safety 
+# Train SPEIS
 ## point
 ```commandline
 cd exps

@@ -70,7 +70,7 @@ RUN pip install numpy==1.23.4
 #RUN pip install -e .
 
 RUN echo "git config --global --add safe.directory /usr/home/workspace" >> ~/.bashrc
-RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bins" >> ~/.bashrc
+RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bin" >> ~/.bashrc
 RUN echo "pip install -e ." >> ~/.bashrc
 
 WORKDIR /usr/home/workspace
