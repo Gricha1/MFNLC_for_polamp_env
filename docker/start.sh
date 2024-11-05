@@ -18,4 +18,4 @@ echo "start docker name: $docker_container_name"
 echo "start docker image: $image_name"
 
 cd ..
-docker run -it --rm --name $docker_container_name --gpus "device=$device" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace $image_name "bash"
+docker run -e WANDB_API_KEY -it --rm --name $docker_container_name --gpus "device=$device" --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -v $(pwd):/usr/home/workspace $image_name "bash"

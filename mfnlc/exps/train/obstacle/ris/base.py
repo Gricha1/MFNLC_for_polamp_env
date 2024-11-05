@@ -58,10 +58,14 @@ def train(env_name,
           fraction_goals_are_rollout_goals: float = 0.2,
           fraction_resampled_goals_are_env_goals: float = 0.0,
           fraction_resampled_goals_are_replay_buffer_goals: float = 0.5,
+          no_safety: bool = False,
+          train_sac: bool = False,
           critic_max_grad_norm: float = None, # RIS
           actor_max_grad_norm: float = None, # RIS
           use_one_safe_critic = False,
+          add_subgoal_reinforce_sg_num = 0,
           subgoal_max_grad_norm: float = None, # RIS
+          sgg_optimizing: bool = False,
           create_eval_env: bool = False,
           policy_to_delete_kwargs: Optional[Dict[str, Any]] = None,
           verbose: int = 1,
@@ -178,27 +182,27 @@ def train(env_name,
                             else:
                                 encoded_state = to_torch_state
                                 encoded_goal = to_torch_goal
-                            subgoal_distribution = self.model.subgoal_net(encoded_state, encoded_goal)
-                            subgoal = subgoal_distribution.loc
-                            s_to_sg_subgoal = self.model.subgoal_net(encoded_state, subgoal).loc
-                            if self.model.use_encoder:
-                                cuda_decoded_subgoal = policy.encoder.decoder(subgoal)
-                                decoded_subgoal = cuda_decoded_subgoal.cpu()
-                                cuda_decoded_s_to_sg_subgoal = policy.encoder.decoder(s_to_sg_subgoal)
-                                decoded_s_to_sg_subgoal = cuda_decoded_s_to_sg_subgoal.cpu()
-                            else:
-                                cuda_decoded_subgoal = subgoal
-                                decoded_subgoal = subgoal.cpu()
-                                cuda_decoded_s_to_sg_subgoal = s_to_sg_subgoal
-                                decoded_s_to_sg_subgoal = cuda_decoded_s_to_sg_subgoal.cpu()
-                            if _locals["episode_counts"][_locals["i"]] == 0:
-                                debug_v_s_sg.append(self.model.value(encoded_state, subgoal).cpu().item())
-                                debug_v_sg_g.append(self.model.value(subgoal, subgoal).cpu().item())
-                                dubug_info["v_s_sg"] = debug_v_s_sg
-                                dubug_info["v_sg_g"] = debug_v_sg_g
-                        if self._eval_env.plot_subgoal:
-                            _locals["env"].envs[0].set_subgoal_pos(decoded_subgoal)
-                            _locals["env"].envs[0].set_subgoal_pos(decoded_s_to_sg_subgoal, s_to_sg=True)
+
+                            subgoals = []
+                            _locals["env"].envs[0].setup_subgoals()
+                            plot_subgoals = max(1, add_subgoal_reinforce_sg_num)
+                            for i in range(plot_subgoals):
+                                subgoal_distribution = self.model.subgoal_net(encoded_state, encoded_goal)
+                                subgoal = subgoal_distribution.loc
+                                encoded_goal = subgoal
+                                if self.model.use_encoder:
+                                    cuda_decoded_subgoal = policy.encoder.decoder(subgoal)
+                                    decoded_subgoal = cuda_decoded_subgoal.cpu()
+                                else:
+                                    cuda_decoded_subgoal = subgoal
+                                    decoded_subgoal = subgoal.cpu()
+                            #if _locals["episode_counts"][_locals["i"]] == 0:
+                            #    debug_v_s_sg.append(self.model.value(encoded_state, subgoal).cpu().item())
+                            #    debug_v_sg_g.append(self.model.value(subgoal, subgoal).cpu().item())
+                            #    dubug_info["v_s_sg"] = debug_v_s_sg
+                            #    dubug_info["v_sg_g"] = debug_v_sg_g
+                                if self._eval_env.plot_subgoal:
+                                    _locals["env"].envs[0].set_subgoal_pos(i, decoded_subgoal)
                         # dubug subgoal
                         #if _locals["episode_counts"][_locals["i"]] == 0 and dubug_info["t"] == 1:
                         #    print("state:", state)
@@ -232,6 +236,7 @@ def train(env_name,
                             self._episode_costs.append(episode_cost)
 
                 print("---------------- start validation ---------------")
+                self.model.policy.setup_actor_critic()
                 episode_rewards, episode_lengths = evaluate_policy(
                     self.model,
                     self._eval_env,
@@ -382,14 +387,17 @@ def train(env_name,
     subgoal_net = LaplacePolicy(state_dim=state_dim, 
                                 goal_dim=state_dim, 
                                 hidden_dims=new_policy_kwargs["net_arch"]).to(default_device)
-    policy = CustomActorCriticPolicy(default_device)
+    policy = CustomActorCriticPolicy(default_device, add_subgoal_reinforce_sg_num)
     policy.actor = actor
     policy.critic = critic
     policy.critic_cost = critic_cost
+    if validate:
+        policy.subgoal_net = subgoal_net
 
     print("******************************")
     print("rew critics:", critic.n_Q)
     print("cost critics:", critic_cost.n_Q)
+    print("add_subgoal_reinforce_sg_num:", add_subgoal_reinforce_sg_num)
 
     model = SafetyRis(
         use_encoder,
@@ -404,9 +412,12 @@ def train(env_name,
         q_lr,
         pi_lr,
         epsilon,
+        no_safety,
+        train_sac,
         critic_max_grad_norm,
         actor_max_grad_norm,
         subgoal_max_grad_norm,
+        sgg_optimizing,
         learning_rate, buffer_size, learning_starts, batch_size, tau, gamma,
         train_freq, gradient_steps, action_noise, 
         HerReplayBuffer, #replay_buffer_class

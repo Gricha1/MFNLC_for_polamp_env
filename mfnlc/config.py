@@ -179,7 +179,7 @@ env_config = {
                                    [-1.8, 0], [-0.8, 1.8]]}
     },
     "GCPoint": {
-        "max_step": 300,
+        "max_step": 600, # 300 by default
         "goal_dim": 2,
         "state_dim": 0,
         "robot_radius": 0.3,
@@ -205,11 +205,12 @@ env_config = {
             2: create_gc_point_level_2_hazards_fix()[0]
         },
         "custom_dataset": {
-            "1": []
+            "1": [],
+            "2": [],
         }
     },
     "GCCar": {
-        "max_step": 300,
+        "max_step": 600,
         "goal_dim": 2,
         "state_dim": 0,
         "robot_radius": 0.3,

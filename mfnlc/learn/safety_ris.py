@@ -42,9 +42,12 @@ class SafetyRis(SAC):
         q_lr: float = 1e-3,
         pi_lr: float = 1e-4, 
         epsilon: float = 1e-16,
+        no_safety: bool = False,
+        train_sac: bool = False,
         critic_max_grad_norm: float = None,
         actor_max_grad_norm: float = None,
         subgoal_max_grad_norm: float = None,
+        sgg_optimizing: bool = False,
         learning_rate: Union[float, Schedule] = 3e-4,
         buffer_size: int = 1_000_000,  # 1e6
         learning_starts: int = 100,
@@ -144,6 +147,7 @@ class SafetyRis(SAC):
         self.clip_v_function = clip_v_function
         self.epsilon = epsilon
         self.subgoal_max_grad_norm = subgoal_max_grad_norm
+        self.sgg_optimizing = sgg_optimizing
 
         # additional buffer
         self.ep_collision_buffer = deque(maxlen=100)
@@ -168,10 +172,10 @@ class SafetyRis(SAC):
         )
 
         # safety
-        self.safety = True
+        self.safety = not no_safety
 
         # sac
-        self.sac = False
+        self.sac = train_sac
         self.sac_alpha = 0.2
 
         if _init_setup_model:
@@ -451,10 +455,13 @@ class SafetyRis(SAC):
         self.lambda_optimizer.step()
         debug_info["lambda_loss"].append(lambda_loss.mean().item())
 
-    def train_highlevel_policy(self, state, goal, subgoal, debug_info={}):
+    def train_highlevel_policy(self, state, goal, subgoal, debug_info={}, sgg_optimizing=False):
 		# Compute subgoal distribution 
         batch_size = state.shape[0] # 2048
         subgoal_distribution = self.subgoal_net(state, goal)
+        if sgg_optimizing:
+            goal = subgoal_distribution.loc
+            subgoal_distribution = self.subgoal_net(state, goal)
         with th.no_grad():
             # Compute target value
             new_subgoal = subgoal_distribution.loc # 2048 x 20
@@ -471,12 +478,14 @@ class SafetyRis(SAC):
 
         log_prob = subgoal_distribution.log_prob(subgoal).sum(-1)
         subgoal_loss = - (log_prob * weight).mean()
-        debug_info["subgoal_net_losses"].append(subgoal_loss.item())
-        debug_info["advs"].append(adv.mean().item())
-        debug_info["target_subgoal_V"].append(v.mean().item())
-        debug_info["subgoal_V"].append(policy_v.mean().item())
-        debug_info["v(s, s_g)"].append(policy_v_1.mean().item())
-        debug_info["v(s_g, g)"].append(policy_v_2.mean().item())
+        if not sgg_optimizing:
+            prefix = ""
+            debug_info[prefix+"subgoal_net_losses"].append(subgoal_loss.item())
+            debug_info[prefix+"advs"].append(adv.mean().item())
+            debug_info[prefix+"target_subgoal_V"].append(v.mean().item())
+            debug_info[prefix+"subgoal_V"].append(policy_v.mean().item())
+            debug_info[prefix+"v(s, s_g)"].append(policy_v_1.mean().item())
+            debug_info[prefix+"v(s_g, g)"].append(policy_v_2.mean().item())
 
         # Update network
         self.subgoal_optimizer.zero_grad()
@@ -626,6 +635,8 @@ class SafetyRis(SAC):
             if not self.sac:
                 if not self.adaptive_collision_reward or (self.adaptive_collision_reward and self.num_timesteps < 300_000):
                     self.train_highlevel_policy(state, goal, subgoal, debug_info) # test
+                    if self.sgg_optimizing:
+                        self.train_highlevel_policy(state, goal, subgoal, debug_info, sgg_optimizing=True) # test
                 else:
                     debug_info["subgoal_net_losses"].append(0)
                     debug_info["advs"].append(0)

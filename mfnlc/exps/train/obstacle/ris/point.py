@@ -27,9 +27,13 @@ def learn(args):
           fraction_goals_are_rollout_goals=0.2, # HER
           fraction_resampled_goals_are_env_goals=0.0, # HER
           fraction_resampled_goals_are_replay_buffer_goals=0.5, # HER
+          no_safety=args.no_safety,
+          train_sac=args.train_sac,
           critic_max_grad_norm=None, # RIS
           actor_max_grad_norm=None, # RIS
           use_one_safe_critic=args.use_one_safe_critic,
+          add_subgoal_reinforce_sg_num=args.add_subgoal_reinforce_sg_num,
+          sgg_optimizing=args.sgg_optimizing,
           n_envs=1,
           batch_size=2048,
           log_interval=4,
@@ -59,6 +63,13 @@ if __name__ == '__main__':
     parser.add_argument("--validate_freq", default=10_000, type=int)
     parser.add_argument("--validate_robot_video", action='store_true', default=False)
     parser.add_argument("--validate_subgoal_video", action='store_true', default=False)
-    args = parser.parse_args()
+    # subgoal policy 
+    parser.add_argument("--add_subgoal_reinforce_sg_num", default=0, type=int)
+    parser.add_argument("--sgg_optimizing", action='store_true', default=False)
+    # sac
+    parser.add_argument("--train_sac", action='store_true', default=False)
+    parser.add_argument("--no_safety", action='store_true', default=False)
+    args = parser.parse_args()    
+    
     learn(args)
     #evaluate_controller()

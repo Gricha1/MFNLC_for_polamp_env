@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from mfnlc.config import env_config
 from collections import deque
 
-CUSTOM_DATASET = False
+CUSTOM_DATASET = True
 FIXED_HAZARDS = True # False by default
 FIXED_START_END = False # False by default
 DIFFICULTY_LEVEL = 2 # 1 by default
@@ -25,7 +25,13 @@ ENV_BOUNDS = True # False by default
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
 PLOT_SUBGOAL_s_to_sg = True
+PLOT_SUBGOAL_s_to_sgg = True
 PLOT_SUBGOAL = True
+
+if CUSTOM_DATASET:
+    assert not FIXED_START_END
+if FIXED_START_END:
+    assert not CUSTOM_DATASET
 
 class EnvBase(Env):
     metadata = {"render.modes": ["human", "rgb_array"]}
@@ -335,21 +341,33 @@ class GCSafetyGymBase(SafetyGymBase):
         self.train_dataset["difficulty_config"] = env_config[robot_name]["difficulty"][level]
         self.train_dataset["floor_lb"], self.train_dataset["floor_ub"] = np.array(self.train_dataset["difficulty_config"][1], dtype=np.float32)
         if CUSTOM_DATASET:
-            assert level == 1, "didnt implement other"
-            """
-                custom_dataset = {"task1:" [[x_s1, y_s1], [x_g1, y_g1]],
-                                  "task2:" [[x_s2, y_s2], [x_g2, y_g2]],
-                                  ...  }
-            """
-            self.custom_dataset = {}
-            #self.fixed_init_and_goal = True # i dont know why this
-            self.task = 1
-            task_1_start = [self.train_dataset["floor_lb"][0], self.train_dataset["floor_lb"][1]]
-            task_1_goal = [self.train_dataset["floor_ub"][0], self.train_dataset["floor_ub"][1]]
-            task_2_start = [self.train_dataset["floor_lb"][0], self.train_dataset["floor_ub"][1]]
-            task_2_goal = [self.train_dataset["floor_ub"][0], self.train_dataset["floor_lb"][1]]
-            self.custom_dataset["task1"] = [task_1_start, task_1_goal]
-            self.custom_dataset["task2"] = [task_2_start, task_2_goal]
+            if level == 1:
+                """
+                    custom_dataset = {"task1:" [[x_s1, y_s1], [x_g1, y_g1]],
+                                    "task2:" [[x_s2, y_s2], [x_g2, y_g2]],
+                                    ...  }
+                """
+                self.custom_dataset = {}
+                #self.fixed_init_and_goal = True # i dont know why this
+                self.task = 1
+                task_1_start = [self.train_dataset["floor_lb"][0], self.train_dataset["floor_lb"][1]]
+                task_1_goal = [self.train_dataset["floor_ub"][0], self.train_dataset["floor_ub"][1]]
+                task_2_start = [self.train_dataset["floor_lb"][0], self.train_dataset["floor_ub"][1]]
+                task_2_goal = [self.train_dataset["floor_ub"][0], self.train_dataset["floor_lb"][1]]
+                self.custom_dataset["task1"] = [task_1_start, task_1_goal]
+                self.custom_dataset["task2"] = [task_2_start, task_2_goal]
+            elif level == 2:
+                self.custom_dataset = {}
+                self.current_task_idx = 0
+                self.custom_dataset["start"] = [[-1.8, 0], [-1.8, 0], [-0.5, 1.8], [-0.5, 1.8]]
+                self.custom_dataset["goal"] = [[1.8, 1.8], [1.8, -1.8], [1.8, 1.8], [1.8, -1.8]]
+                current_start = copy.deepcopy(self.custom_dataset["start"])
+                current_goal = copy.deepcopy(self.custom_dataset["goal"])
+                self.custom_dataset["start"].extend(current_goal)
+                self.custom_dataset["goal"].extend(current_start)
+                print("custom dataset len:", len(self.custom_dataset["start"]))
+            else:
+                assert 1 == 0
         fixed_hazards = FIXED_HAZARDS
         fixed_start_end = FIXED_START_END
         self.train_dataset["hazards_placements"] = None
@@ -358,7 +376,9 @@ class GCSafetyGymBase(SafetyGymBase):
         else:
             self.train_dataset["hazards_locations"] = []
         if fixed_start_end:
-            init = 0.9 * self.train_dataset["floor_lb"]
+            #init = 0.9 * self.train_dataset["floor_lb"]
+            #init = np.array([-0.5, 1.8])
+            init = np.array([-1.8, 0])
             goal = np.array([0.9, 0.8]) * self.train_dataset["floor_ub"]
             self.update_env_config({
                 "robot_locations": [init.tolist()],
@@ -435,34 +455,39 @@ class GCSafetyGymBase(SafetyGymBase):
             "goal_locations": []
         })
     
-    def set_subgoal_pos(self, subgoal_related_pos, s_to_sg=False):
-        if s_to_sg:
-            if self.subgoal_s_to_sg_pos:
-                del self.subgoal_s_to_sg_pos
-            self.subgoal_s_to_sg_pos = []
-            shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
-            self.subgoal_s_to_sg_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())
-            self.subgoal_s_to_sg_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
-        else:
-            if self.subgoal_pos:
-                del self.subgoal_pos
-            self.subgoal_pos = []
-            shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
-            self.subgoal_pos.append(subgoal_related_pos[0][0][0 + shift_v].item())
-            self.subgoal_pos.append(subgoal_related_pos[0][0][1 + shift_v].item())
+    def setup_subgoals(self):
+        if self.subgoal_pos:
+            del self.subgoal_pos
+        self.subgoal_pos = []
+
+    def set_subgoal_pos(self, i, subgoal_related_pos):
+        shift_v = int(subgoal_related_pos[0][0].shape[0] / self.frame_stack * (self.frame_stack - 1))
+        self.subgoal_pos.append((i, [subgoal_related_pos[0][0][0 + shift_v].item(), 
+                                     subgoal_related_pos[0][0][1 + shift_v].item()]))
 
     def reset(self, **kwargs):
         if CUSTOM_DATASET:
-            if self.task == 1:
-                self.task = 2
-            else:
-                self.task = 1
-            current_task = self.custom_dataset["task" + str(self.task)] 
-            self.update_env_config({
-                "robot_locations": [current_task[0]],
-                "goal_locations": [current_task[1]]
-            })
-        
+            if DIFFICULTY_LEVEL == 1:
+                if self.task == 1:
+                    self.task = 2
+                else:
+                    self.task = 1
+                current_task = self.custom_dataset["task" + str(self.task)] 
+                self.update_env_config({
+                    "robot_locations": [current_task[0]],
+                    "goal_locations": [current_task[1]]
+                })
+            elif DIFFICULTY_LEVEL == 2:
+                start = self.custom_dataset["start"][self.current_task_idx]
+                goal = self.custom_dataset["goal"][self.current_task_idx]
+                self.update_env_config({
+                    "robot_locations": [start],
+                    "goal_locations": [goal]
+                })
+                self.current_task_idx += 1
+                if self.current_task_idx >= len(self.custom_dataset["start"]):
+                    self.current_task_idx = 0
+            
         # check env config
         self.state_history.clear()
         self.goal_history.clear()
@@ -630,19 +655,19 @@ class GCSafetyGymBase(SafetyGymBase):
 
             # subgoal
             if self.subgoal_pos is not None and PLOT_SUBGOAL:
-                x = self.subgoal_pos[0]
-                y = self.subgoal_pos[1]
-                circle_robot = plt.Circle((x, y), radius=self.robot_radius / 3, color="orange", alpha=0.5)
-                self.render_info["ax_states"].add_patch(circle_robot)
-                self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s_g")
-                if add_subgoal_values:
-                    self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_s_sg"])), dubug_info["v_s_sg"])
-                    self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_sg_g"])), dubug_info["v_sg_g"])
-            if PLOT_SUBGOAL_s_to_sg and self.subgoal_s_to_sg_pos is not None:
-                x = self.subgoal_s_to_sg_pos[0]
-                y = self.subgoal_s_to_sg_pos[1]
-                circle_robot = plt.Circle((x, y), radius=self.robot_radius / 5, color="orange", alpha=0.5)
-                self.render_info["ax_states"].add_patch(circle_robot)
+                for i, subgoal_pos in self.subgoal_pos:
+                    x = subgoal_pos[0]
+                    y = subgoal_pos[1]
+                    if i == 0:
+                        circle_robot = plt.Circle((x, y), radius=self.robot_radius / 3, color="orange", alpha=0.5)
+                    else:
+                        circle_robot = plt.Circle((x, y), radius=self.robot_radius / 5, color="orange", alpha=0.5)
+                    self.render_info["ax_states"].add_patch(circle_robot)
+                    if i == 0:
+                        self.render_info["ax_states"].text(x + 0.05, y + 0.05, "s_g")
+                    if add_subgoal_values:
+                        self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_s_sg"])), dubug_info["v_s_sg"])
+                        self.render_info["ax_subgoal_values"].plot(range(len(dubug_info["v_sg_g"])), dubug_info["v_sg_g"])
 
             # goal
             x = self.env.goal_pos[0]

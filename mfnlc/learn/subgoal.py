@@ -101,11 +101,20 @@ class CustomActorCriticPolicy:
 		stable - baseline OffPolicyAlgorithm class uses .predict() 
 			function in .policy attribute, so this class is .policy attribute
 	"""
-	def __init__(self, device):
+	def __init__(self, device, add_subgoal_reinforce_sg_num, subgoal_net_action_repeat=1):
 		self.device = device
 		self.actor = None
 		self.critic = None
 		self.critic_cost = None
+		self.subgoal_net = None
+		self.old_subgoal = None
+		self.add_subgoal_reinforce_sg_num = add_subgoal_reinforce_sg_num
+		self.subgoal_net_action_repeat = subgoal_net_action_repeat
+		if self.subgoal_net_action_repeat > 1:
+			assert self.add_subgoal_reinforce_sg_num == 1
+
+	def setup_actor_critic(self):
+		self.subgoal_forward_nums = 0
 		
 	def select_action(self, state, goal, deterministic):
 		with torch.no_grad():
@@ -114,6 +123,10 @@ class CustomActorCriticPolicy:
 			if self.use_encoder:
 				state = self.encoder(state)
 				goal = self.encoder(goal)
+			if not (self.add_subgoal_reinforce_sg_num is None):
+				for i in range(self.add_subgoal_reinforce_sg_num):
+					subgoal_distribution = self.subgoal_net(state, goal)
+					goal = subgoal_distribution.loc
 			action, _, mean = self.actor.sample(state, goal)
 			if deterministic:
 				action = mean
@@ -133,8 +146,7 @@ class CustomActorCriticPolicy:
 		goal = observation["desired_goal"]
 		vectorized_env = True
 
-		with torch.no_grad():
-			actions = self.select_action(state, goal, deterministic=deterministic)
+		actions = self.select_action(state, goal, deterministic=deterministic)
 		# print(f"predicted actions: {actions}")
 		return actions.reshape(1, -1), state
 	

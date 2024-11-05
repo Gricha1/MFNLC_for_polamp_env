@@ -75,5 +75,7 @@ RUN echo "pip install -e ." >> ~/.bashrc
 
 WORKDIR /usr/home/workspace
 
+ARG WANDB_API_KEY
+
 # install safety gym
 #CMD cd /usr/home/workspace/safety-gym && pip install -e .
