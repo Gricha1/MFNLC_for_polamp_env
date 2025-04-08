@@ -17,7 +17,7 @@ from collections import deque
 CUSTOM_DATASET = False
 FIXED_HAZARDS = False # False by default
 FIXED_START_END = False # False by default
-DIFFICULTY_LEVEL = 2 # 1 by default
+DIFFICULTY_LEVEL = 1 # 1 by default
 OBSTACLES_IN_OBSERVATION = 4 # 4 by default
 FRAME_STACK = 1 # 1 by default
 COLLISION_PENALTY = -100
