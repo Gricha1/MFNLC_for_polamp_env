@@ -30,6 +30,7 @@ def learn(args):
           critic_max_grad_norm=None, # RIS
           actor_max_grad_norm=None, # RIS
           use_one_safe_critic=args.use_one_safe_critic,
+          safe_critic_behave=args.safe_critic_behave,
           n_envs=1,
           batch_size=4096,
           log_interval=4,          

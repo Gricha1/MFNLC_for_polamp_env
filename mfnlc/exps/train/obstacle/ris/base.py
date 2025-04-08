@@ -63,6 +63,7 @@ def train(env_name,
           critic_max_grad_norm: float = None, # RIS
           actor_max_grad_norm: float = None, # RIS
           use_one_safe_critic = False,
+          safe_critic_behave = "min",
           add_subgoal_reinforce_sg_num = 0,
           subgoal_max_grad_norm: float = None, # RIS
           sgg_optimizing: bool = False,
@@ -84,6 +85,7 @@ def train(env_name,
           validate=False,
           validate_robot_video=False,
           validate_subgoal_video=True,
+          validate_video_idx=0,
           load_model=False,
           load_model_folder=""
           ):
@@ -151,6 +153,7 @@ def train(env_name,
                 self._is_success_buffer = []
                 self._episode_costs = []
                 self.collisions = []
+                self.custom_success_rate = []
                 dubug_info = {"acc_reward" : 0, "t": 0, "acc_cost" : 0}
                 debug_v_s_sg = []
                 debug_v_sg_g = []
@@ -162,6 +165,7 @@ def train(env_name,
                         self.collisions.append(1.0)
                     elif _locals['done']:
                         self.collisions.append(0.0)
+                        self.custom_success_rate.append(1.0)
                     # print(f"action: {_locals['actions']}")
                     dubug_info["a0"] = _locals["actions"][0][0]
                     dubug_info["a1"] = _locals["actions"][0][1]
@@ -209,7 +213,7 @@ def train(env_name,
                         #    print("subgoal:", subgoal[0])
                         #    print("goal:", goal)
                     # get video
-                    if _locals["episode_counts"][_locals["i"]] == 0:
+                    if _locals["episode_counts"][_locals["i"]] == validate_video_idx:
                         if validate_robot_video:
                             if self._eval_env.plot_only_start_goal_pose:
                                 if dubug_info["t"] == 1:
@@ -236,6 +240,7 @@ def train(env_name,
                             self._episode_costs.append(episode_cost)
 
                 print("---------------- start validation ---------------")
+                print("validation tasks:", num_episodes)
                 self.model.policy.setup_actor_critic()
                 episode_rewards, episode_lengths = evaluate_policy(
                     self.model,
@@ -309,6 +314,29 @@ def train(env_name,
                     self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_mean_cost", 0)
                     self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_max_cost", 0)
                     self.logger.record(f"{wandb_folder_name}/{wandb_folder_name}_min_cost", 0)
+
+                if validate:
+                    wandb_log_dict = {}
+                    wandb_log_dict["val_reward"] = float(mean_reward)
+                    wandb_log_dict["val_ep_length"] = mean_ep_length                    
+                    wandb_log_dict["val_collision_rate"] = collision_rate
+                    if len(self._is_success_buffer) > 0:
+                        success_rate = np.mean(self._is_success_buffer)
+                        wandb_log_dict["val_success_rate"] = success_rate
+                    else:
+                        success_rate = np.mean(self._is_success_buffer)
+                        wandb_log_dict["val_success_rate"] = 0
+                    if len(self._episode_costs) > 0:
+                        mean_cost = np.mean(self._episode_costs)
+                        wandb_log_dict["val_mean_cost"] = mean_cost
+                    else:
+                        wandb_log_dict["val_mean_cost"] = 0
+                    run.log(wandb_log_dict)
+
+                    print("solved tasks:", self._is_success_buffer)
+                    print("custom solved tasks:", self.custom_success_rate)
+                    assert 1 == 0, "end validation"
+
                 print("---------------- end validation ---------------")
 
                 return success_rate
@@ -350,8 +378,11 @@ def train(env_name,
     # test eval env
     obs = callback_eval_env.reset()
     print("obs type:", type(obs))
-    print("obs:", callback_eval_env.observation_space)
+    print("obs:", callback_eval_env.observation_space.keys())
     print("image shape:", callback_eval_env.custom_render(positions_render=True).shape)
+
+    if callback_eval_env.is_custom_dataset:
+        assert validate
 
     env_obs_dim = env.observation_space["observation"].shape[0]
     env_goal_dim = env.observation_space["desired_goal"].shape[0]
@@ -362,7 +393,7 @@ def train(env_name,
     if use_wandb:
         run_id = run.id
         video_recorder = VideoRecorderCallback(callback_eval_env, 
-                                            n_eval_episodes=10, 
+                                            n_eval_episodes=len(callback_eval_env.custom_dataset["start"]) if callback_eval_env.is_custom_dataset else 10, 
                                             render_freq=validate_freq,
                                             gradient_save_freq=0, # error if > 0 
                                             model_save_path=f"models/{run_id}",
@@ -413,6 +444,7 @@ def train(env_name,
         pi_lr,
         epsilon,
         no_safety,
+        safe_critic_behave,
         train_sac,
         critic_max_grad_norm,
         actor_max_grad_norm,

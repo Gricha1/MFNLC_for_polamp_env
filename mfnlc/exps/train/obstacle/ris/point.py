@@ -34,6 +34,7 @@ def learn(args):
           use_one_safe_critic=args.use_one_safe_critic,
           add_subgoal_reinforce_sg_num=args.add_subgoal_reinforce_sg_num,
           sgg_optimizing=args.sgg_optimizing,
+          safe_critic_behave=args.safe_critic_behave,
           n_envs=1,
           batch_size=2048,
           log_interval=4,
@@ -42,6 +43,7 @@ def learn(args):
           validate=args.validate,
           validate_robot_video=args.validate_robot_video,
           validate_subgoal_video=args.validate_subgoal_video,
+          validate_video_idx=args.validate_video_idx,
           load_model=args.load_model,
           load_model_folder=args.load_model_folder)
 
@@ -63,13 +65,16 @@ if __name__ == '__main__':
     parser.add_argument("--validate_freq", default=10_000, type=int)
     parser.add_argument("--validate_robot_video", action='store_true', default=False)
     parser.add_argument("--validate_subgoal_video", action='store_true', default=False)
+    parser.add_argument("--validate_video_idx", default=0, type=int)
     # subgoal policy 
     parser.add_argument("--add_subgoal_reinforce_sg_num", default=0, type=int)
     parser.add_argument("--sgg_optimizing", action='store_true', default=False)
     # sac
     parser.add_argument("--train_sac", action='store_true', default=False)
     parser.add_argument("--no_safety", action='store_true', default=False)
+    parser.add_argument("--safe_critic_behave", default="min", type=str)
     args = parser.parse_args()    
     
+    assert args.safe_critic_behave in ["min", "max", "mean"]
     learn(args)
     #evaluate_controller()

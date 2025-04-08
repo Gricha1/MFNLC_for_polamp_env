@@ -14,14 +14,14 @@ import matplotlib.pyplot as plt
 from mfnlc.config import env_config
 from collections import deque
 
-CUSTOM_DATASET = True
-FIXED_HAZARDS = True # False by default
+CUSTOM_DATASET = False
+FIXED_HAZARDS = False # False by default
 FIXED_START_END = False # False by default
 DIFFICULTY_LEVEL = 2 # 1 by default
-OBSTACLES_IN_OBSERVATION = 8 # 4 by default
-FRAME_STACK = 4 # 1 by default
+OBSTACLES_IN_OBSERVATION = 4 # 4 by default
+FRAME_STACK = 1 # 1 by default
 COLLISION_PENALTY = -100
-ENV_BOUNDS = True # False by default
+ENV_BOUNDS = False # False by default
 PLOT_ADD_SUBGOAL_VALUES = False
 PLOT_ONLY_START_GOAL_POSE = False
 PLOT_SUBGOAL_s_to_sg = True
@@ -340,6 +340,7 @@ class GCSafetyGymBase(SafetyGymBase):
         robot_name = "GC" + self.robot_name
         self.train_dataset["difficulty_config"] = env_config[robot_name]["difficulty"][level]
         self.train_dataset["floor_lb"], self.train_dataset["floor_ub"] = np.array(self.train_dataset["difficulty_config"][1], dtype=np.float32)
+        self.is_custom_dataset = CUSTOM_DATASET
         if CUSTOM_DATASET:
             if level == 1:
                 """
@@ -359,12 +360,20 @@ class GCSafetyGymBase(SafetyGymBase):
             elif level == 2:
                 self.custom_dataset = {}
                 self.current_task_idx = 0
-                self.custom_dataset["start"] = [[-1.8, 0], [-1.8, 0], [-0.5, 1.8], [-0.5, 1.8]]
-                self.custom_dataset["goal"] = [[1.8, 1.8], [1.8, -1.8], [1.8, 1.8], [1.8, -1.8]]
+                self.custom_dataset["start"] = [[-1.8, 0], [-1.8, 0], [-0.5, 1.8], [-0.5, 1.8], [-0.7, -1],
+                                                #[-1.8, -1]
+                                                #[0, -1.5], [0.5, -1.5], [1.5, -1.8], [-0.5, 1.5]
+                                                ]
+                self.custom_dataset["goal"] = [[1.8, 1.8], [1.8, -1.8], [1.8, 1.8], [1.8, -1.8], [1.2, 1.5],
+                                                #[-0.5, 1]
+                                                #[-0.5, 1], [-1.5, 1], [-1.5, 1], [1.8, 1.8]
+                                                ]
                 current_start = copy.deepcopy(self.custom_dataset["start"])
                 current_goal = copy.deepcopy(self.custom_dataset["goal"])
                 self.custom_dataset["start"].extend(current_goal)
                 self.custom_dataset["goal"].extend(current_start)
+                self.custom_dataset["start"].extend(self.custom_dataset["start"])
+                self.custom_dataset["goal"].extend(self.custom_dataset["goal"])
                 print("custom dataset len:", len(self.custom_dataset["start"]))
             else:
                 assert 1 == 0

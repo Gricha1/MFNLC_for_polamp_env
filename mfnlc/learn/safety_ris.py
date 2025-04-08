@@ -43,6 +43,7 @@ class SafetyRis(SAC):
         pi_lr: float = 1e-4, 
         epsilon: float = 1e-16,
         no_safety: bool = False,
+        safe_critic_behave = "min", 
         train_sac: bool = False,
         critic_max_grad_norm: float = None,
         actor_max_grad_norm: float = None,
@@ -173,6 +174,7 @@ class SafetyRis(SAC):
 
         # safety
         self.safety = not no_safety
+        self.safe_critic_behave = safe_critic_behave
 
         # sac
         self.sac = train_sac
@@ -252,30 +254,6 @@ class SafetyRis(SAC):
                             + (env.envs[0].env.collision_penalty - 200) * collision_batch
 
         cost_batch = clearance_is_enough_batch
-        # cost_batch = clearance_is_enough_batch * (1.0 - collision_batch) + (-env.envs[0].env.collision_penalty) * collision_batch
-        """
-        if env.static_env:
-            velocity_array = np.abs(next_state_batch[:, 3:4])
-            if args.use_lower_velocity_bound:
-                min_ris_velocity = 0.3
-                # cost_collision = fabs(env.collision_reward)
-                # adding threshold to lower velocity bound
-                velocity_limit_exceeded = velocity_array >= min_ris_velocity
-                updated_velocity_array = velocity_array * velocity_limit_exceeded
-                cost_batch = (np.ones_like(done_batch) * updated_velocity_array) * (1.0 - clearance_is_enough_batch)
-                # cost_batch = (1.0 - collision_batch) * cost_batch + cost_collision * collision_batch
-            else:
-                cost_batch = (np.ones_like(done_batch) * velocity_array) * (1.0 - clearance_is_enough_batch)
-
-        else:
-            cost_batch = (- np.ones_like(done_batch) * 0)
-        """
-        # Scaling
-        # if args.scaling > 0.0:
-        #     reward_batch = reward_batch * args.scaling
-        # check if (collision == 1) then (done == 1)
-        #if env.static_env and not env.teleport_back_on_collision:
-        #    assert ( (1.0 - 1.0 * collision_batch) + (1.0 * collision_batch) * (1.0 * done_batch) ).all()
 
         # Convert to Pytorch
         state_batch         = th.FloatTensor(state_batch).to(device)
@@ -445,7 +423,14 @@ class SafetyRis(SAC):
     
     def train_lagrangian(self, state, action, goal, debug_info={}):
         Q_cost = self.critic_cost(state, action, goal)
-        Q_cost = th.min(Q_cost, -1, keepdim=True)[0]
+        if self.safe_critic_behave == "min":
+            Q_cost = th.min(Q_cost, -1, keepdim=True)[0]
+        elif self.safe_critic_behave == "max":
+            Q_cost = th.max(Q_cost, -1, keepdim=True)[0]
+        elif self.safe_critic_behave == "mean":
+            Q_cost = th.mean(Q_cost, -1, keepdim=True)[0]
+        else:
+            assert 1 == 0
         Q_cost = th.clamp(Q_cost, min=0.0)
         violation = Q_cost - self.timestep_cost_limit
         lambda_loss =  self.lambda_coefficient * violation.detach()
@@ -579,7 +564,14 @@ class SafetyRis(SAC):
                 target_Q = reward + (1.0-done) * self.gamma*target_Q
                 if self.safety:
                     target_Q_cost = self.critic_cost_target(next_state, next_action, goal)
-                    target_Q_cost = th.min(target_Q_cost, -1, keepdim=True)[0]
+                    if self.safe_critic_behave == "min":
+                        target_Q_cost = th.min(target_Q_cost, -1, keepdim=True)[0]
+                    elif self.safe_critic_behave == "max":
+                        target_Q_cost = th.max(target_Q_cost, -1, keepdim=True)[0]
+                    elif self.safe_critic_behave == "mean":
+                        target_Q_cost = th.mean(target_Q_cost, -1, keepdim=True)[0]
+                    else:
+                        assert 1 == 0
                     target_Q_cost = th.clamp(target_Q_cost, min=0.0)
                     target_Q_cost = cost + (1.0-done) * self.gamma*target_Q_cost
 
@@ -658,7 +650,14 @@ class SafetyRis(SAC):
             Q = th.min(Q, -1, keepdim=True)[0]
             if self.safety:
                 Q_cost = self.critic_cost(state, action, goal)
-                Q_cost = th.min(Q_cost, -1, keepdim=True)[0]
+                if self.safe_critic_behave == "min":
+                    Q_cost = th.min(Q_cost, -1, keepdim=True)[0]
+                elif self.safe_critic_behave == "max":
+                    Q_cost = th.max(Q_cost, -1, keepdim=True)[0]
+                elif self.safe_critic_behave == "mean":
+                    Q_cost = th.mean(Q_cost, -1, keepdim=True)[0]
+                else:
+                    assert 1 == 0
                 with th.no_grad():
                     lambda_multiplier = th.nn.functional.softplus(self.lambda_coefficient).detach()
                 debug_info["lambda_multiplier"].append(lambda_multiplier.item())
