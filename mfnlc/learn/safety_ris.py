@@ -43,6 +43,7 @@ class SafetyRis(SAC):
         pi_lr: float = 1e-4, 
         epsilon: float = 1e-16,
         no_safety: bool = False,
+        cost_limit = 3.0, 
         safe_critic_behave = "min", 
         train_sac: bool = False,
         critic_max_grad_norm: float = None,
@@ -175,6 +176,7 @@ class SafetyRis(SAC):
         # safety
         self.safety = not no_safety
         self.safe_critic_behave = safe_critic_behave
+        self.cost_limit = cost_limit
 
         # sac
         self.sac = train_sac
@@ -204,9 +206,8 @@ class SafetyRis(SAC):
         self.actor_optimizer = th.optim.Adam(self.actor.parameters(), lr=self.pi_lr)
         self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=self.q_lr)
         if self.safety:
-            cost_limit = 3.0
+            cost_limit = self.cost_limit
             max_episode_steps = 300
-            self.cost_limit = cost_limit
 			# we should use the timestep_cost_limit
             self.timestep_cost_limit = cost_limit * (1 - self.gamma ** max_episode_steps) / (1 - self.gamma) / max_episode_steps
             print(f"timestep_cost_limit: {self.timestep_cost_limit}")

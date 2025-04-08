@@ -28,6 +28,7 @@ def learn(args):
           fraction_resampled_goals_are_env_goals=0.0, # HER
           fraction_resampled_goals_are_replay_buffer_goals=0.5, # HER
           no_safety=args.no_safety,
+          cost_limit=args.cost_limit,
           train_sac=args.train_sac,
           critic_max_grad_norm=None, # RIS
           actor_max_grad_norm=None, # RIS
@@ -73,6 +74,7 @@ if __name__ == '__main__':
     parser.add_argument("--train_sac", action='store_true', default=False)
     parser.add_argument("--no_safety", action='store_true', default=False)
     parser.add_argument("--safe_critic_behave", default="min", type=str)
+    parser.add_argument("--cost_limit", default=3.0, type=float)
     args = parser.parse_args()    
     
     assert args.safe_critic_behave in ["min", "max", "mean"]

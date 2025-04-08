@@ -59,6 +59,7 @@ def train(env_name,
           fraction_resampled_goals_are_env_goals: float = 0.0,
           fraction_resampled_goals_are_replay_buffer_goals: float = 0.5,
           no_safety: bool = False,
+          cost_limit = 3.0,
           train_sac: bool = False,
           critic_max_grad_norm: float = None, # RIS
           actor_max_grad_norm: float = None, # RIS
@@ -378,7 +379,7 @@ def train(env_name,
     # test eval env
     obs = callback_eval_env.reset()
     print("obs type:", type(obs))
-    print("obs:", callback_eval_env.observation_space.keys())
+    #print("obs:", callback_eval_env.observation_space.keys())
     print("image shape:", callback_eval_env.custom_render(positions_render=True).shape)
 
     if callback_eval_env.is_custom_dataset:
@@ -444,6 +445,7 @@ def train(env_name,
         pi_lr,
         epsilon,
         no_safety,
+        cost_limit,
         safe_critic_behave,
         train_sac,
         critic_max_grad_norm,

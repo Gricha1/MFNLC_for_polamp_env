@@ -31,6 +31,7 @@ def learn(args):
           actor_max_grad_norm=None, # RIS
           use_one_safe_critic=args.use_one_safe_critic,
           safe_critic_behave=args.safe_critic_behave,
+          cost_limit=args.cost_limit,
           n_envs=1,
           batch_size=4096,
           log_interval=4,          
@@ -50,6 +51,8 @@ def evaluate_controller():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--use_one_safe_critic", action='store_true', default=False)
+    parser.add_argument("--safe_critic_behave", default="min", type=str)
+    parser.add_argument("--cost_limit", default=3.0, type=float)
     args = parser.parse_args()
     learn(args)
     #evaluate_controller()

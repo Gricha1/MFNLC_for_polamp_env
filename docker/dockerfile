@@ -42,7 +42,7 @@ RUN pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1
 RUN apt-get install libopenmpi-dev
 RUN pip install mpi4py
 RUN pip install setuptools==65.5.0 "wheel<0.40.0"
-RUN pip install gym==0.18.3
+RUN pip install gym
 RUN pip install gymnasium==0.29.1
 RUN pip install pandas==1.5.3
 RUN pip install matplotlib==3.6.2
@@ -59,6 +59,8 @@ RUN cd /usr/home/workspace/safety-gym \
 
 # fix after safety gym installation
 RUN pip install numpy==1.23.4
+
+RUN pip install stable-baselines3==1.6.0 --no-deps
 
 # mb rce deps
 #RUN apt-get install libopenmpi-dev
