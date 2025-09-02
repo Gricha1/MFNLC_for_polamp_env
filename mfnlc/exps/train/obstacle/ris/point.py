@@ -20,15 +20,17 @@ def learn(args):
           q_lr=1e-3, # RIS
           pi_lr=1e-4, # RIS
           epsilon=1e-16, # RIS
-          alpha=0.05, # RIS
+          alpha=args.alpha, # RIS
           Lambda=0.05, # RIS
           n_ensemble=20, # RIS
           clip_v_function=-150, # RIS,
+          buffer_size_her=args.buffer_size_her, # HER
           fraction_goals_are_rollout_goals=0.2, # HER
           fraction_resampled_goals_are_env_goals=0.0, # HER
           fraction_resampled_goals_are_replay_buffer_goals=0.5, # HER
           no_safety=args.no_safety,
           cost_limit=args.cost_limit,
+          lambda_initialization=args.lambda_initialization,
           train_sac=args.train_sac,
           critic_max_grad_norm=None, # RIS
           actor_max_grad_norm=None, # RIS
@@ -37,7 +39,7 @@ def learn(args):
           sgg_optimizing=args.sgg_optimizing,
           safe_critic_behave=args.safe_critic_behave,
           n_envs=1,
-          batch_size=2048,
+          batch_size=args.batch_size,
           log_interval=4,
           validate_freq=args.validate_freq,
           use_wandb=True,
@@ -70,6 +72,11 @@ if __name__ == '__main__':
     # subgoal policy 
     parser.add_argument("--add_subgoal_reinforce_sg_num", default=0, type=int)
     parser.add_argument("--sgg_optimizing", action='store_true', default=False)
+    # SPEIS
+    parser.add_argument("--alpha", default=0.05, type=float)
+    parser.add_argument("--lambda_initialization", default=0.5, type=float)
+    parser.add_argument("--buffer_size_her", default=500_000, type=int)
+    parser.add_argument("--batch_size", default=2048, type=int)
     # sac
     parser.add_argument("--train_sac", action='store_true', default=False)
     parser.add_argument("--no_safety", action='store_true', default=False)

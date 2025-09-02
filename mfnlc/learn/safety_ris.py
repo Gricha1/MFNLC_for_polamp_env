@@ -44,6 +44,7 @@ class SafetyRis(SAC):
         epsilon: float = 1e-16,
         no_safety: bool = False,
         cost_limit = 3.0, 
+        lambda_initialization = 5.0,
         safe_critic_behave = "min", 
         train_sac: bool = False,
         critic_max_grad_norm: float = None,
@@ -72,6 +73,7 @@ class SafetyRis(SAC):
         Lambda: float = 0.1, 
         n_ensemble: int = 10, 
         clip_v_function: float = -150,
+        buffer_size_her: int = 500_000,
         fraction_goals_are_rollout_goals: float = 0.2,
         fraction_resampled_goals_are_env_goals: float = 0.0,
         fraction_resampled_goals_are_replay_buffer_goals: float = 0.5,
@@ -160,7 +162,7 @@ class SafetyRis(SAC):
         vectorized = False
         self.path_builder = PathBuilder()
         self.custom_replay_buffer = HERReplayBuffer(
-            max_size=500_000,
+            max_size=buffer_size_her,
             env=env,
             fraction_goals_are_rollout_goals = fraction_goals_are_rollout_goals,
             fraction_resampled_goals_are_env_goals = fraction_resampled_goals_are_env_goals,
@@ -177,6 +179,7 @@ class SafetyRis(SAC):
         self.safety = not no_safety
         self.safe_critic_behave = safe_critic_behave
         self.cost_limit = cost_limit
+        self.lambda_initialization = lambda_initialization
 
         # sac
         self.sac = train_sac
@@ -215,7 +218,7 @@ class SafetyRis(SAC):
             self.critic_cost_target = deepcopy(self.critic_cost)
             self.critic_cost_optimizer = th.optim.Adam(self.critic_cost.parameters(), lr=self.q_lr)
             self.update_lambda = 1000
-            lambda_initialization = 0.5
+            lambda_initialization = self.lambda_initialization
             self.lambda_coefficient = th.tensor(lambda_initialization, requires_grad=True)
             self.lambda_optimizer = th.optim.Adam([self.lambda_coefficient], lr=5e-4)
 
